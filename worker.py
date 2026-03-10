@@ -64,8 +64,9 @@ def main():
             success = wallet.update_template(template_id, currency)
             
             if success:
-                # Step 4: Mark email as read only if update was successful
+                # Step 4: Mark email as read and STAR it only if update was successful
                 gmail.mark_as_read(msg_id)
+                gmail.star_message(msg_id)
                 logger.info("Successfully processed alert for message {}".format(msg_id))
             else:
                 logger.error("Failed to process alert for message {}".format(msg_id))

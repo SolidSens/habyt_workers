@@ -182,4 +182,16 @@ class GmailManager:
             ).execute()
             logger.info("Message {} marked as read.".format(msg_id))
         except HttpError as error:
-            logger.error("An error occurred while linking message: {}".format(error))
+            logger.error("An error occurred while marking message as read: {}".format(error))
+
+    def star_message(self, msg_id):
+        """Adds a STAR to the processed email."""
+        try:
+            self.service.users().messages().modify(
+                userId='me', 
+                id=msg_id, 
+                body={'addLabelIds': ['STARRED']}
+            ).execute()
+            logger.info("Message {} starred successfully.".format(msg_id))
+        except HttpError as error:
+            logger.error("An error occurred while starring message: {}".format(error))
