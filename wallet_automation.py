@@ -139,21 +139,24 @@ class WalletAutomation:
             currency_select.select_by_value(currency)
             logger.info("Selected currency: {}".format(currency))
 
-            # Check Card Balance Value (still using the ID found previously or in the gpay-ref)
+            # Check Card Balance Value (using specifically provided ID and logic)
             try:
-                balance_field = self.wait.until(EC.presence_of_element_located((By.ID, "card_balance_value")))
-                current_val = balance_field.get_attribute("value")
-                logger.info("Current balance value: '{}'".format(current_val))
+                balance_field = self.wait.until(EC.presence_of_element_located((By.ID, "s_currency_1")))
+                current_val = str(balance_field.get_attribute("value")).strip()
+                logger.info("Current balance (s_currency_1) value: '{}'".format(current_val))
                 if current_val == "0":
                     balance_field.clear()
-                    logger.info("Cleared balance field.")
+                    logger.info("Cleared balance field because it was '0'.")
+                else:
+                    logger.info("Kept existing balance value: '{}'".format(current_val))
             except Exception as e:
-                logger.warning("Could not find or clear balance field (card_balance_value): {}".format(e))
+                logger.warning("Could not handle balance field (s_currency_1): {}".format(e))
 
-            # 5. Save and Push
-            logger.info("Saving changes...")
-            save_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Save Pass Template')]")))
+            # 5. Save Template
+            logger.info("Saving changes (submit-form)...")
+            save_btn = self.wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "submit-form")))
             save_btn.click()
+            time.sleep(2)
 
             logger.info("Pushing update...")
             update_push_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Update and Continue')]")))
