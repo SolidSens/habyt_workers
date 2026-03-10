@@ -1,3 +1,4 @@
+import os
 import time
 import logging
 from selenium import webdriver
@@ -238,14 +239,62 @@ class WalletAutomation:
             time.sleep(2)
 
             # 5. Click "Apple Wallet Fields" Tab
-            # Selector based on user provided snippet: <a ... data-tab="apple-wallet-tab" ...>
             apple_tab = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a[data-tab='apple-wallet-tab']")))
             self._robust_click(apple_tab, "Apple Wallet Fields tab")
             time.sleep(2)
 
-            # TODO: Implement Icon Upload logic here if required
-            logger.info("Successfully navigated to Apple Wallet Fields tab for icon update.")
+            # 6. Delete Old Icon
+            try:
+                delete_btn = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, 'img[src*="delBtn.png"]')))
+                self._robust_click(delete_btn, "delete icon button")
+                logger.info("Deleted old icon.")
+                time.sleep(1)
+            except Exception as e:
+                logger.info("Delete icon button not found or not needed: {}".format(e))
+
+            # 7. Upload New PNG
+            try:
+                # Ensure the path is absolute for Selenium file upload
+                abs_icon_path = os.path.abspath(icon_path)
+                logger.info("Uploading icon from: {}".format(abs_icon_path))
+                
+                # The input is hidden inside the label, but we can send keys directly to the input[type='file']
+                file_input = self.driver.find_element(By.ID, "iconToUpload")
+                file_input.send_keys(abs_icon_path)
+                logger.info("Upload command sent successfully.")
+                time.sleep(2)
+            except Exception as e:
+                logger.error("Failed to upload icon: {}".format(e))
+                return False
+
+            # 8. Click Save Pass Template
+            save_btn = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.submit-form")))
+            self._robust_click(save_btn, "save button")
+            time.sleep(2)
+
+            # 9. Final Modal Push (Optional)
+            try:
+                logger.info("Checking for optional 'Update and Continue' modal button...")
+                temp_wait = WebDriverWait(self.driver, 5)
+                update_push_btn = temp_wait.until(EC.presence_of_element_located((By.ID, "add_pass_update")))
+                self._robust_click(update_push_btn, "final modal update button")
+                time.sleep(2)
+            except Exception:
+                logger.info("Final modal (id='add_pass_update') not found or not required.")
+
+            # 10. Success Verification
+            time.sleep(1)
+            if "success=" in self.driver.current_url:
+                logger.info("Success! Icon updated and redirected.")
+                return True
             
+            # Final attempt to check URL
+            time.sleep(2)
+            if "success=" in self.driver.current_url:
+                logger.info("Success! Icon updated after delay.")
+                return True
+
+            logger.info("Icon update finished for template {}. Final URL: {}".format(template_id, self.driver.current_url))
             return True
 
         except Exception as e:
