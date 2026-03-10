@@ -124,38 +124,31 @@ class WalletAutomation:
             logger.info("Step 1 Continue button found. Clicking...")
             continue_btn.click()
 
-            # 3. Navigate until "Universal Fields" section is reached
-            logger.info("Navigating through wizard steps...")
-            max_steps = 5
-            for i in range(max_steps):
-                try:
-                    # Look for currency dropdown
-                    currency_dropdown_el = self.driver.find_elements(By.ID, "currency_code")
-                    if currency_dropdown_el and currency_dropdown_el[0].is_displayed():
-                         logger.info("Reached the Universal Fields section (currency_code found).")
-                         break
-                    
-                    logger.info("Step {}: Clicking Continue...".format(i+1))
-                    next_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Continue')]")))
-                    next_btn.click()
-                    time.sleep(2)
-                except Exception as e:
-                    logger.warning("Wizard navigation loop notice: {}".format(e))
-                    if i == max_steps - 1:
-                        logger.error("Reached maximum wizard steps without finding currency_code.")
+            # 3. Navigate to "Universal Fields" tab
+            logger.info("Clicking on 'Universal Fields' tab...")
+            # Using the specific data-tab attribute provided by the user
+            universal_tab = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a[data-tab='universal-fields-tab']")))
+            universal_tab.click()
+            time.sleep(1)
 
             # 4. Data Update
-            logger.info("Updating fields...")
-            currency_select = Select(self.wait.until(EC.presence_of_element_located((By.ID, "currency_code"))))
+            logger.info("Updating currency in 'Universal Fields'...")
+            # Use the specific ID 's_currencystyle_1' provided by the user
+            currency_dropdown = self.wait.until(EC.presence_of_element_located((By.ID, "s_currencystyle_1")))
+            currency_select = Select(currency_dropdown)
             currency_select.select_by_value(currency)
             logger.info("Selected currency: {}".format(currency))
 
-            balance_field = self.wait.until(EC.presence_of_element_located((By.ID, "card_balance_value")))
-            current_val = balance_field.get_attribute("value")
-            logger.info("Current balance value: '{}'".format(current_val))
-            if current_val == "0":
-                balance_field.clear()
-                logger.info("Cleared balance field.")
+            # Check Card Balance Value (still using the ID found previously or in the gpay-ref)
+            try:
+                balance_field = self.wait.until(EC.presence_of_element_located((By.ID, "card_balance_value")))
+                current_val = balance_field.get_attribute("value")
+                logger.info("Current balance value: '{}'".format(current_val))
+                if current_val == "0":
+                    balance_field.clear()
+                    logger.info("Cleared balance field.")
+            except Exception as e:
+                logger.warning("Could not find or clear balance field (card_balance_value): {}".format(e))
 
             # 5. Save and Push
             logger.info("Saving changes...")
