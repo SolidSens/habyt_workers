@@ -67,66 +67,91 @@ class WalletAutomation:
 
         try:
             url = "https://app.walletthat.com/platform/wallet/pass-templates.php"
-            self.driver.get(url)
-            logger.info("Navigated to: {}".format(url))
+            if self.driver.current_url != url:
+                logger.info("Current URL is different, navigating to: {}".format(url))
+                self.driver.get(url)
+            else:
+                logger.info("Already on the templates page.")
 
             # 1. Filter by Template ID
-            search_input = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='search']")))
+            logger.info("Waiting for search input...")
+            search_input = self.wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "input[type='search']")))
+            logger.info("Search input found. Typing Template ID: {}".format(template_id))
             search_input.clear()
             search_input.send_keys(template_id)
-            time.sleep(1) # Allow for AJAX filtering
+            time.sleep(2) # Give it extra time for the table to filter
 
-            actions_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//td[contains(text(), '{}')]/following-sibling::td//button[contains(text(), 'Actions')]".format(template_id))))
+            # 2. Click Actions -> Edit
+            logger.info("Looking for Actions button for template {}...".format(template_id))
+            # Try a more broad XPATH finding the TD with template ID and then the button in that row
+            xpath_actions = "//td[contains(., '{}')]/following-sibling::td//button[contains(., 'Actions')]".format(template_id)
+            actions_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath_actions)))
+            logger.info("Actions button found. Clicking...")
             actions_btn.click()
 
+            logger.info("Waiting for Edit link...")
             edit_link = self.wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Edit")))
+            logger.info("Edit link found. Clicking...")
             edit_link.click()
 
+            logger.info("Waiting for first Continue button...")
             continue_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Continue')]")))
+            logger.info("Continue button found. Clicking...")
             continue_btn.click()
 
             # 3. Navigate until "Universal Fields" section is reached
-            # This might involve multiple "Continue" clicks depending on the wizard steps
-            # We'll look for the Currency Code field as a signal
-            while True:
+            logger.info("Navigating through wizard steps...")
+            max_steps = 5
+            for i in range(max_steps):
                 try:
                     # Look for currency dropdown
                     currency_dropdown_el = self.driver.find_elements(By.ID, "currency_code")
                     if currency_dropdown_el and currency_dropdown_el[0].is_displayed():
+                         logger.info("Reached the Universal Fields section (currency_code found).")
                          break
                     
+                    logger.info("Step {}: Clicking Continue...".format(i+1))
                     next_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Continue')]")))
                     next_btn.click()
-                    time.sleep(1)
+                    time.sleep(1.5)
                 except Exception as e:
-                    logger.error("Error while navigating to Universal Fields: {}".format(e))
-                    break
+                    logger.warning("Wizard navigation loop notice: {}".format(e))
+                    if i == max_steps - 1:
+                        logger.error("Reached maximum wizard steps without finding currency_code.")
 
             # 4. Data Update
-            # Select Currency Code
+            logger.info("Updating fields...")
             currency_select = Select(self.wait.until(EC.presence_of_element_located((By.ID, "currency_code"))))
             currency_select.select_by_value(currency)
             logger.info("Selected currency: {}".format(currency))
 
-            # Check Card Balance Value
             balance_field = self.wait.until(EC.presence_of_element_located((By.ID, "card_balance_value")))
             current_val = balance_field.get_attribute("value")
+            logger.info("Current balance value: '{}'".format(current_val))
             if current_val == "0":
                 balance_field.clear()
-                logger.info("Cleared balance field (was '0')")
+                logger.info("Cleared balance field.")
 
             # 5. Save and Push
+            logger.info("Saving changes...")
             save_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Save Pass Template')]")))
             save_btn.click()
 
+            logger.info("Pushing update...")
             update_push_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Update and Continue')]")))
             update_push_btn.click()
-            logger.info("Template {} update completed successfully.".format(template_id))
-
+            
+            logger.info("Template {} update completed successfully!".format(template_id))
             return True
 
         except Exception as e:
-            logger.error("Failed to update template {}: {}".format(template_id, e))
+            logger.error("Automation flow failed at template {}: {}".format(template_id, e))
+            # Just for debug
+            try:
+                curr_url = self.driver.current_url
+                logger.error("Failure occurred at URL: {}".format(curr_url))
+            except:
+                pass
             return False
 
     def close(self):
