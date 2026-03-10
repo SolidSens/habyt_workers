@@ -2,9 +2,12 @@ import unittest
 import re
 
 def parse_email_body(body):
-    """Parses the email body to extract Template ID and Currency."""
-    template_id_match = re.search(r"Template ID:\s*([A-Za-z0-9]+)", body, re.IGNORECASE)
-    currency_match = re.search(r"Reason / Currency to reapply:\s*([A-Z]{3})", body, re.IGNORECASE)
+    """Parses the email body to extract Template ID and Currency. (Spanish/HTML support)"""
+    clean_body = re.sub(r'<[^>]+>', ' ', body)
+    clean_body = re.sub(r'\s+', ' ', clean_body).strip()
+    
+    template_id_match = re.search(r"(?:Template ID|ID de Plantilla|ID):\s*([A-Za-z0-9]+)", clean_body, re.IGNORECASE)
+    currency_match = re.search(r"(?:Currency|Moneda|Currency to reapply):\s*([A-Z]{3})", clean_body, re.IGNORECASE)
 
     if template_id_match and currency_match:
         return {
@@ -14,20 +17,19 @@ def parse_email_body(body):
     return None
 
 class TestEmailParsing(unittest.TestCase):
-    def test_parse_standard_email(self):
+    def test_parse_spanish_html_email(self):
         body = """
-        Hola Habyt,
-        Se ha detectado un cambio.
-        Template ID: HABYT12345
-        Reason / Currency to reapply: MXN
-        Por favor procede con la actualización.
+        <div style="color: red;">
+        ID de Plantilla: HABYT12345
+        Moneda: MXN
+        </div>
         """
         expected = {'template_id': 'HABYT12345', 'currency': 'MXN'}
         result = parse_email_body(body)
         self.assertEqual(result, expected)
 
     def test_parse_with_spaces_and_case(self):
-        body = "template id:   ABC987\nreason / currency to reapply: USD"
+        body = "ID:   ABC987\nMoneda: USD"
         expected = {'template_id': 'ABC987', 'currency': 'USD'}
         result = parse_email_body(body)
         self.assertEqual(result, expected)

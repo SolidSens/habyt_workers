@@ -20,15 +20,16 @@ def main():
     chrome_data_dir = os.getenv('CHROME_USER_DATA_DIR')
     chrome_profile = os.getenv('CHROME_PROFILE_NAME', 'Default')
     chrome_binary = os.getenv('CHROME_BINARY_PATH')
-    chrome_debug_port = os.getenv('CHROME_DEBUG_PORT')
+    # Use strip() to handle cases with trailing spaces in .env
+    chrome_debug_port = os.getenv('CHROME_DEBUG_PORT', '').strip()
     
     # Initialize managers
     gmail = GmailManager(credentials_path=gmail_creds, token_path=gmail_token)
     
-    if chrome_debug_port:
-        logger.info("Mode: Remote Debugging (Port: {})".format(chrome_debug_port))
+    if chrome_debug_port and chrome_debug_port != "":
+        logger.info("CONFIGURATION: Mode=Remote Debugging, Port={}".format(chrome_debug_port))
     else:
-        logger.info("Mode: Local Profile (Dir: {})".format(chrome_data_dir))
+        logger.info("CONFIGURATION: Mode=Local Profile, Dir={}".format(chrome_data_dir))
 
     wallet = WalletAutomation(
         user_data_dir=chrome_data_dir, 
