@@ -49,7 +49,7 @@ class GmailManager:
         if not self.service:
             self.authenticate()
 
-        query = 'label:"Alerts Habyt" is:unread subject:"Alerta: Cambio de Balance Inicial"'
+        query = 'label:"Alerts Habyt" is:unread subject:"Alerta: Cambio de"'
         try:
             results = self.service.users().messages().list(userId='me', q=query).execute()
             messages = results.get('messages', [])
@@ -91,7 +91,7 @@ class GmailManager:
         """
         # Adjusted regex based on prompt description
         template_id_match = re.search(r"Template ID:\s*([A-Za-z0-9]+)", body, re.IGNORECASE)
-        currency_match = re.search(r"Reason / Currency to reapply:\s*([A-Z]{3})", body, re.IGNORECASE)
+        currency_match = re.search(r"(?:Currency|Currency to reapply):\s*([A-Z]{3})", body, re.IGNORECASE)
 
         if template_id_match and currency_match:
             return {
