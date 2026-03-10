@@ -48,10 +48,12 @@ class WalletAutomation:
             service = Service(ChromeDriverManager().install())
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
             self.wait = WebDriverWait(self.driver, 20)
-            if not self.debugger_address:
-                logger.info("Launched Chrome with profile: {}".format(self.profile_name))
+            
+            if self.debugger_address:
+                logger.info("Successfully attached to existing Chrome at {}.".format(self.debugger_address))
             else:
-                logger.info("Successfully attached to existing Chrome instance.")
+                logger.info("Launched Chrome with profile: {}".format(self.profile_name))
+
         except Exception as e:
             if "user data directory is already in use" in str(e):
                 logger.error("CHROME ERROR: The Chrome profile you specified is already open.")
