@@ -30,7 +30,7 @@ class GmailManager:
                 creds.refresh(Request())
             else:
                 if not os.path.exists(self.credentials_path):
-                    raise FileNotFoundError(f"Credentials file not found at {self.credentials_path}")
+                    raise FileNotFoundError("Credentials file not found at {}".format(self.credentials_path))
                 flow = InstalledAppFlow.from_client_secrets_file(self.credentials_path, SCOPES)
                 creds = flow.run_local_server(port=0)
             
@@ -41,7 +41,7 @@ class GmailManager:
             self.service = build('gmail', 'v1', credentials=creds)
             return self.service
         except HttpError as error:
-            logger.error(f"An error occurred during Gmail authentication: {error}")
+            logger.error("An error occurred during Gmail authentication: {}".format(error))
             return None
 
     def get_unread_alerts(self):
@@ -75,11 +75,11 @@ class GmailManager:
                     parsed['id'] = msg_id
                     alert_data.append(parsed)
                 else:
-                    logger.warning(f"Could not parse email body for message {msg_id}")
+                    logger.warning("Could not parse email body for message {}".format(msg_id))
 
             return alert_data
         except HttpError as error:
-            logger.error(f"An error occurred while fetching emails: {error}")
+            logger.error("An error occurred while fetching emails: {}".format(error))
             return []
 
     def parse_email_body(self, body):
@@ -108,6 +108,6 @@ class GmailManager:
                 id=msg_id, 
                 body={'removeLabelIds': ['UNREAD']}
             ).execute()
-            logger.info(f"Message {msg_id} marked as read.")
+            logger.info("Message {} marked as read.".format(msg_id))
         except HttpError as error:
-            logger.error(f"An error occurred while linking message: {error}")
+            logger.error("An error occurred while linking message: {}".format(error))

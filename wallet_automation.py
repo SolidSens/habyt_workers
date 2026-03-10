@@ -22,8 +22,8 @@ class WalletAutomation:
     def start_browser(self):
         """Initializes the Chrome browser with the persistent user profile."""
         chrome_options = Options()
-        chrome_options.add_argument(f"--user-data-dir={self.user_data_dir}")
-        chrome_options.add_argument(f"--profile-directory={self.profile_name}")
+        chrome_options.add_argument("--user-data-dir={}".format(self.user_data_dir))
+        chrome_options.add_argument("--profile-directory={}".format(self.profile_name))
         
         if self.chrome_binary_path:
             chrome_options.binary_location = self.chrome_binary_path
@@ -36,7 +36,7 @@ class WalletAutomation:
         service = Service(ChromeDriverManager().install())
         self.driver = webdriver.Chrome(service=service, options=chrome_options)
         self.wait = WebDriverWait(self.driver, 20)
-        logger.info(f"Launched Chrome with profile: {self.profile_name}")
+        logger.info("Launched Chrome with profile: {}".format(self.profile_name))
 
     def update_template(self, template_id, currency):
         """Perform the update flow for a specific template."""
@@ -46,7 +46,7 @@ class WalletAutomation:
         try:
             url = "https://app.walletthat.com/platform/wallet/pass-templates.php"
             self.driver.get(url)
-            logger.info(f"Navigated to: {url}")
+            logger.info("Navigated to: {}".format(url))
 
             # 1. Filter by Template ID
             search_input = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='search']")))
@@ -54,9 +54,7 @@ class WalletAutomation:
             search_input.send_keys(template_id)
             time.sleep(1) # Allow for AJAX filtering
 
-            # 2. Click Actions -> Edit -> Continue
-            # We assume the first row after filtering is the target
-            actions_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, f"//td[contains(text(), '{template_id}')]/following-sibling::td//button[contains(text(), 'Actions')]")))
+            actions_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//td[contains(text(), '{}')]/following-sibling::td//button[contains(text(), 'Actions')]".format(template_id))))
             actions_btn.click()
 
             edit_link = self.wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Edit")))
@@ -79,14 +77,14 @@ class WalletAutomation:
                     next_btn.click()
                     time.sleep(1)
                 except Exception as e:
-                    logger.error(f"Error while navigating to Universal Fields: {e}")
+                    logger.error("Error while navigating to Universal Fields: {}".format(e))
                     break
 
             # 4. Data Update
             # Select Currency Code
             currency_select = Select(self.wait.until(EC.presence_of_element_located((By.ID, "currency_code"))))
             currency_select.select_by_value(currency)
-            logger.info(f"Selected currency: {currency}")
+            logger.info("Selected currency: {}".format(currency))
 
             # Check Card Balance Value
             balance_field = self.wait.until(EC.presence_of_element_located((By.ID, "card_balance_value")))
@@ -101,12 +99,12 @@ class WalletAutomation:
 
             update_push_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Update and Continue')]")))
             update_push_btn.click()
-            logger.info(f"Template {template_id} update completed successfully.")
+            logger.info("Template {} update completed successfully.".format(template_id))
 
             return True
 
         except Exception as e:
-            logger.error(f"Failed to update template {template_id}: {e}")
+            logger.error("Failed to update template {}: {}".format(template_id, e))
             return False
 
     def close(self):

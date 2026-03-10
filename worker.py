@@ -43,7 +43,7 @@ def main():
             logger.info("No new alerts found.")
             return
 
-        logger.info(f"Found {len(alerts)} new alert(s).")
+        logger.info("Found {} new alert(s).".format(len(alerts)))
 
         # Step 2: Open browser for automation
         wallet.start_browser()
@@ -54,19 +54,19 @@ def main():
             currency = alert['currency']
             msg_id = alert['id']
             
-            logger.info(f"Processing Template ID: {template_id}, Currency: {currency}")
+            logger.info("Processing Template ID: {}, Currency: {}".format(template_id, currency))
             
             success = wallet.update_template(template_id, currency)
             
             if success:
                 # Step 4: Mark email as read only if update was successful
                 gmail.mark_as_read(msg_id)
-                logger.info(f"Successfully processed alert for message {msg_id}")
+                logger.info("Successfully processed alert for message {}".format(msg_id))
             else:
-                logger.error(f"Failed to process alert for message {msg_id}")
+                logger.error("Failed to process alert for message {}".format(msg_id))
 
     except Exception as e:
-        logger.error(f"An error occurred during execution: {e}")
+        logger.error("An error occurred during execution: {}".format(e))
     finally:
         wallet.close()
         logger.info("Worker session ended.")
