@@ -110,7 +110,7 @@ class GmailManager:
                     parsed['id'] = msg_id
                     alert_data.append(parsed)
                 else:
-                    logger.warning("Could not parse email body for message {}. Body length: {}".format(msg_id, len(body)))
+                    logger.warning("Could not parse email body for message {}. Body snippet: {}".format(msg_id, body[:500].replace('\n', ' ')))
             except Exception as e:
                 logger.error("Error retrieving full message {}: {}".format(msg_id, e))
 
