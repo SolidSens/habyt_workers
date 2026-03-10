@@ -7,6 +7,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
+from selenium.webdriver.common.keys import Keys
 from webdriver_manager.chrome import ChromeDriverManager
 
 logger = logging.getLogger(__name__)
@@ -60,6 +61,19 @@ class WalletAutomation:
                 logger.error("FIX: Either close Chrome, or use the 'Remote Debugging' method (see walkthrough).")
             raise e
 
+    def _robust_click(self, element, description="element"):
+        """Tries to click an element, falls back to JS click if obstructed."""
+        try:
+            # Scroll into view
+            self.driver.execute_script("arguments[0].scrollIntoView(true);", element)
+            time.sleep(0.5)
+            element.click()
+            logger.info("Successfully clicked {}.".format(description))
+        except Exception as e:
+            logger.warning("Standard click failed for {}, trying JavaScript click. Error: {}".format(description, e))
+            self.driver.execute_script("arguments[0].click();", element)
+            logger.info("Successfully clicked {} via JavaScript.".format(description))
+
     def update_template(self, template_id, currency):
         """Perform the update flow for a specific template."""
         if not self.driver:
@@ -100,10 +114,9 @@ class WalletAutomation:
             try:
                 search_btn = self.driver.find_element(By.ID, "searchbtn")
                 logger.info("Clicking search button (id='searchbtn')...")
-                search_btn.click()
+                self._robust_click(search_btn, "search button")
             except:
                 logger.info("Search button not found or not clickable, pressing ENTER on input...")
-                from selenium.webdriver.common.keys import Keys
                 search_input.send_keys(Keys.ENTER)
             
             time.sleep(3) # Give it extra time for the table to filter
@@ -111,24 +124,21 @@ class WalletAutomation:
             # 2. Click Actions -> Edit
             logger.info("Looking for Actions dropdown (id='actionDropdownMenu')...")
             actions_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "actionDropdownMenu")))
-            logger.info("Actions button found. Clicking...")
-            actions_btn.click()
+            self._robust_click(actions_btn, "actions dropdown")
 
             logger.info("Waiting for Edit option in dropdown...")
             edit_link = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(@class, 'dropdown-item') and contains(., 'Edit')]")))
-            logger.info("Edit link found. Clicking...")
-            edit_link.click()
+            self._robust_click(edit_link, "edit link")
 
             logger.info("Waiting for first Continue button (id='step-1-button')...")
             continue_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "step-1-button")))
-            logger.info("Step 1 Continue button found. Clicking...")
-            continue_btn.click()
+            self._robust_click(continue_btn, "step-1 continue button")
 
             # 3. Navigate to "Universal Fields" tab
             logger.info("Clicking on 'Universal Fields' tab...")
             # Using the specific data-tab attribute provided by the user
             universal_tab = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a[data-tab='universal-fields-tab']")))
-            universal_tab.click()
+            self._robust_click(universal_tab, "universal fields tab")
             time.sleep(1)
 
             # 4. Data Update
@@ -153,20 +163,21 @@ class WalletAutomation:
                 logger.warning("Could not handle balance field (s_currency_1): {}".format(e))
 
             # 5. Save Template
-            logger.info("Saving changes (submit-form)...")
-            save_btn = self.wait.until(EC.element_to_be_clickable((By.CLASS_NAME, "submit-form")))
-            save_btn.click()
+            logger.info("Searching for Save button (submit-form)...")
+            save_btn = self.wait.until(EC.presence_of_element_located((By.CLASS_NAME, "submit-form")))
+            logger.info("Save button found. Clicking robustly...")
+            self._robust_click(save_btn, "save button")
             time.sleep(2)
 
             # 6. Final Modal Push
             try:
                 logger.info("Waiting for final 'Update and Continue' modal button (id='add_pass_update')...")
                 # Using the specific ID provided by the user for the modal button
-                update_push_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "add_pass_update")))
-                update_push_btn.click()
-                logger.info("Final modal push completed.")
-            except:
-                logger.info("Final update button (id='add_pass_update') not found or not needed.")
+                # We use presence instead of clickable first just in case it's covered by a fader
+                update_push_btn = self.wait.until(EC.presence_of_element_located((By.ID, "add_pass_update")))
+                self._robust_click(update_push_btn, "final modal update button")
+            except Exception as e:
+                logger.info("Final update button (id='add_pass_update') not found or not clickable: {}".format(e))
             
             logger.info("Template {} update completed successfully!".format(template_id))
             return True
