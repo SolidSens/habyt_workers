@@ -67,6 +67,16 @@ class TestEmailParsing(unittest.TestCase):
         result = parse_email_body(body)
         self.assertEqual(result, expected)
 
+    def test_parse_reapply_currency_format(self):
+        # This simulates the "Alerta: Cambio de Balance Inicial" format
+        body = """
+        Template ID: 9ceed34b710db8a635cd16fba323bad217343c93
+        Reason / Currency to reapply: Balance Inicial de Tarjeta changed. Wallet reverts to USD. Reapply currency: AUD
+        """
+        expected = {'template_id': '9ceed34b710db8a635cd16fba323bad217343c93', 'currency': 'AUD'}
+        result = parse_email_body(body)
+        self.assertEqual(result, expected)
+
     def test_parse_invalid_body(self):
         body = "This is a random email without the required fields."
         result = parse_email_body(body)

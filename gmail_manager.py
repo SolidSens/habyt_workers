@@ -154,7 +154,7 @@ class GmailManager:
 
         # Fallback to standard labels if still not found
         if not currency:
-            label_match = re.search(r"(?:Currency|Moneda|Currency to reapply):\s*\b([A-Z]{3})\b", clean_body, re.IGNORECASE)
+            label_match = re.search(r"(?:Currency|Moneda|Currency to reapply|Reason / Currency to reapply|Reapply currency):\s*\b([A-Z]{3})\b", clean_body, re.IGNORECASE)
             if label_match:
                 currency = label_match.group(1)
                 logger.info("Found currency via generic label pattern: {}".format(currency))
