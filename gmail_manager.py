@@ -2,6 +2,7 @@ import os
 import base64
 import re
 import logging
+import requests
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
@@ -101,74 +102,126 @@ class GmailManager:
                 if 'Icono' in subject:
                     alert_type = 'icon'
 
-                body = ""
+                plain_body = ""
+                html_body = ""
                 if 'parts' in payload:
                     for part in payload['parts']:
                         if part['mimeType'] == 'text/plain':
-                            body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
-                            break
-                        elif part['mimeType'] == 'text/html' and not body:
-                            # Fallback to HTML if plain text not found
-                            body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                            plain_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
+                        elif part['mimeType'] == 'text/html':
+                            html_body = base64.urlsafe_b64decode(part['body']['data']).decode('utf-8')
                 elif 'body' in payload:
-                    body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8')
+                    if payload.get('mimeType') == 'text/html':
+                        html_body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8')
+                    else:
+                        plain_body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8')
 
-                parsed = self.parse_email_body(body, alert_type)
+                body_for_parsing = plain_body if plain_body else html_body
+                parsed = self.parse_email_body(body_for_parsing, alert_type)
+
                 if parsed:
                     parsed['id'] = msg_id
                     parsed['alert_type'] = alert_type
                     
                     # If it's an icon update, download the icon
                     if alert_type == 'icon':
-                        icon_path = self.download_icon(full_msg, parsed['template_id'])
+                        # Pass HTML body to download_icon so it can search for <img> tags
+                        icon_path = self.download_icon(full_msg, parsed['template_id'], body=html_body)
                         if icon_path:
                             parsed['icon_path'] = icon_path
                         else:
-                            logger.error("Failed to download icon for Template ID: {}".format(parsed['template_id']))
+                            logger.error("Failed to download or find icon for Template ID: {}".format(parsed['template_id']))
                             continue # Skip if icon missing or failed
                     
                     alert_data.append(parsed)
                 else:
-                    logger.warning("Could not parse email body for message {}. Body snippet: {}".format(msg_id, body[:500].replace('\n', ' ')))
+                    logger.warning("Could not parse email body for message {}. Body snippet: {}".format(msg_id, body_for_parsing[:500].replace('\n', ' ')))
             except Exception as e:
                 logger.error("Error retrieving full message {}: {}".format(msg_id, e))
 
         return alert_data
 
-    def download_icon(self, message, template_id, target_dir='icons'):
-        """Downloads the image attachment or embedded image from the message."""
+    def download_icon(self, message, template_id, body="", target_dir='icons'):
+        """
+        Downloads the image from the message. 
+        Checks attachments, inline parts, and HTML body for URLs.
+        """
         if not os.path.exists(target_dir):
             os.makedirs(target_dir)
 
+        msg_id = message.get('id')
         payload = message.get('payload', {})
-        parts = payload.get('parts', [])
         
-        # Check for attachments/parts with image mimeType
-        for part in parts:
-            if 'image/' in part['mimeType']:
-                if 'attachmentId' in part['body']:
-                    # Download attachment
-                    attachment_id = part['body']['attachmentId']
+        # Helper to process a part
+        def process_part(part):
+            mime_type = part.get('mimeType', '')
+            body_data = part.get('body', {})
+            
+            if 'image/' in mime_type:
+                data = None
+                if 'attachmentId' in body_data:
+                    attachment_id = body_data['attachmentId']
                     try:
                         attachment = self.service.users().messages().attachments().get(
-                            userId='me', messageId=message['id'], id=attachment_id
+                            userId='me', messageId=msg_id, id=attachment_id
                         ).execute()
                         data = base64.urlsafe_b64decode(attachment['data'])
-                        
-                        # Use template_id for filename
+                    except Exception as e:
+                        logger.error("Error downloading attachment {}: {}".format(attachment_id, e))
+                elif 'data' in body_data:
+                    data = base64.urlsafe_b64decode(body_data['data'])
+                
+                if data:
+                    filename = "{}.png".format(template_id)
+                    filepath = os.path.join(target_dir, filename)
+                    with open(filepath, 'wb') as f:
+                        f.write(data)
+                    logger.info("Downloaded icon (from part) to: {}".format(filepath))
+                    return filepath
+            
+            if 'parts' in part:
+                for subpart in part['parts']:
+                    res = process_part(subpart)
+                    if res: return res
+            return None
+
+        # 1. Try parts first
+        result = process_part(payload)
+        if result: return result
+
+        # 2. Try searching the body for images if no attachment found
+        if body:
+            # Look for <img> tags
+            img_matches = re.findall(r'<img[^>]+src=["\']([^"\']+)["\']', body, re.IGNORECASE)
+            for src in img_matches:
+                # Handle data:image URIs
+                if src.startswith('data:image'):
+                    try:
+                        header, encoded = src.split(",", 1)
+                        data = base64.b64decode(encoded)
                         filename = "{}.png".format(template_id)
                         filepath = os.path.join(target_dir, filename)
                         with open(filepath, 'wb') as f:
                             f.write(data)
-                        logger.info("Downloaded icon to: {}".format(filepath))
+                        logger.info("Downloaded icon (from data-URI) to: {}".format(filepath))
                         return filepath
                     except Exception as e:
-                        logger.error("Error downloading attachment {}: {}".format(attachment_id, e))
-            
-            # Recursive check for nested parts
-            if 'parts' in part:
-                res = self.download_icon({'id': message['id'], 'payload': part}, template_id, target_dir)
-                if res: return res
+                        logger.error("Failed to decode data-URI icon: {}".format(e))
+                
+                # Handle remote URLs
+                elif src.startswith('http'):
+                    # Skip tracking pixels or common icons if necessary, but here we take the first one found in "New Icon Uploaded" context
+                    try:
+                        resp = requests.get(src, timeout=10)
+                        if resp.status_code == 200 and 'image' in resp.headers.get('Content-Type', ''):
+                            filename = "{}.png".format(template_id)
+                            filepath = os.path.join(target_dir, filename)
+                            with open(filepath, 'wb') as f:
+                                f.write(resp.content)
+                            logger.info("Downloaded icon (from URL: {}) to: {}".format(src, filepath))
+                            return filepath
+                    except Exception as e:
+                        logger.error("Failed to download remote icon from {}: {}".format(src, e))
 
         return None
 
