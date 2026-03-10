@@ -75,168 +75,121 @@ class WalletAutomation:
             self.driver.execute_script("arguments[0].click();", element)
             logger.info("Successfully clicked {} via JavaScript.".format(description))
 
-    def update_template(self, template_id, currency):
-        """Perform the update flow for a specific template."""
+    def _navigate_to_edit(self, template_id):
+        """Common logic to navigate to the Edit page of a template."""
         if not self.driver:
             self.start_browser()
         
-        # Ensure wait is initialized (lint fix and safety)
         if self.driver and not self.wait:
             self.wait = WebDriverWait(self.driver, 20)
 
-        try:
-            url = "https://app.walletthat.com/platform/wallet/pass-templates.php"
-            if self.driver.current_url != url:
-                logger.info("Current URL is different, navigating to: {}".format(url))
-                self.driver.get(url)
-                time.sleep(2) # Give it time to load
-            else:
-                logger.info("Already on the templates page.")
-
-            # 1. Filter by Template ID
-            logger.info("Locating search input...")
-            search_input = None
-            for selector in [(By.ID, "searchtxt"), (By.CSS_SELECTOR, "input[type='search']")]:
-                try:
-                    search_input = self.wait.until(EC.visibility_of_element_located(selector))
-                    logger.info("Search input found using selector: {}".format(selector))
-                    break
-                except:
-                    continue
-            
-            if not search_input:
-                raise Exception("Could not find search input using any known selector.")
-
-            logger.info("Typing Template ID: {}".format(template_id))
-            search_input.clear()
-            search_input.send_keys(template_id)
-            
-            # Try to click search button if exists
+        url = "https://app.walletthat.com/platform/wallet/pass-templates.php"
+        if self.driver.current_url != url:
+            logger.info("Navigating to: {}".format(url))
+            self.driver.get(url)
+            time.sleep(2)
+        
+        # Search for Template
+        logger.info("Locating search input...")
+        search_input = None
+        for selector in [(By.ID, "searchtxt"), (By.CSS_SELECTOR, "input[type='search']")]:
             try:
-                search_btn = self.driver.find_element(By.ID, "searchbtn")
-                logger.info("Clicking search button (id='searchbtn')...")
-                self._robust_click(search_btn, "search button")
+                search_input = self.wait.until(EC.visibility_of_element_located(selector))
+                logger.info("Search input found using selector: {}".format(selector))
+                break
             except:
-                logger.info("Search button not found or not clickable, pressing ENTER on input...")
-                search_input.send_keys(Keys.ENTER)
-            
-            time.sleep(3) # Give it extra time for the table to filter
+                continue
+        
+        if not search_input:
+            raise Exception("Could not find search input.")
 
-            # 2. Click Actions -> Edit
-            logger.info("Looking for Actions dropdown (id='actionDropdownMenu')...")
-            actions_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "actionDropdownMenu")))
-            self._robust_click(actions_btn, "actions dropdown")
+        search_input.clear()
+        search_input.send_keys(template_id)
+        
+        try:
+            search_btn = self.driver.find_element(By.ID, "searchbtn")
+            self._robust_click(search_btn, "search button")
+        except:
+            search_input.send_keys(Keys.ENTER)
+        
+        time.sleep(3)
 
-            logger.info("Waiting for Edit option in dropdown...")
-            edit_link = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(@class, 'dropdown-item') and contains(., 'Edit')]")))
-            self._robust_click(edit_link, "edit link")
+        # Click Actions -> Edit
+        actions_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "actionDropdownMenu")))
+        self._robust_click(actions_btn, "actions dropdown")
 
-            logger.info("Waiting for first Continue button (id='step-1-button')...")
-            continue_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "step-1-button")))
-            self._robust_click(continue_btn, "step-1 continue button")
+        edit_link = self.wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Edit")))
+        self._robust_click(edit_link, "edit link")
+        
+        # Step 1 Continue
+        continue_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "step-1-button")))
+        self._robust_click(continue_btn, "step 1 continue button")
+        time.sleep(2)
+        return True
+
+    def update_template(self, template_id, currency):
+        """Perform the update flow for a specific template."""
+        try:
+            self._navigate_to_edit(template_id)
 
             # 3. Navigate to "Universal Fields" tab
             logger.info("Clicking on 'Universal Fields' tab...")
-            # Using the specific data-tab attribute provided by the user
             universal_tab = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a[data-tab='universal-fields-tab']")))
             self._robust_click(universal_tab, "universal fields tab")
             time.sleep(1)
 
             # 4. Data Update
             logger.info("Updating currency in 'Universal Fields'...")
-            # Use the specific ID 's_currencystyle_1' provided by the user
             currency_dropdown = self.wait.until(EC.presence_of_element_located((By.ID, "s_currencystyle_1")))
             currency_select = Select(currency_dropdown)
             currency_select.select_by_value(currency)
             logger.info("Selected currency: {}".format(currency))
 
-            # Check Card Balance Value (using specifically provided ID and logic)
+            # Check Card Balance Value
             try:
                 balance_field = self.wait.until(EC.presence_of_element_located((By.ID, "s_currency_1")))
                 current_val = str(balance_field.get_attribute("value")).strip()
-                logger.info("Current balance (s_currency_1) value: '{}'".format(current_val))
                 if current_val == "0":
                     balance_field.clear()
                     logger.info("Cleared balance field because it was '0'.")
-                else:
-                    logger.info("Kept existing balance value: '{}'".format(current_val))
             except Exception as e:
                 logger.warning("Could not handle balance field (s_currency_1): {}".format(e))
 
             # 5. Save Template
-            logger.info("Searching for Save button (submit-form)...")
             save_btn = self.wait.until(EC.presence_of_element_located((By.CLASS_NAME, "submit-form")))
-            logger.info("Save button found. Clicking robustly...")
             self._robust_click(save_btn, "save button")
             time.sleep(2)
 
             # 6. Final Modal Push (Optional)
             try:
-                logger.info("Checking for optional 'Update and Continue' modal button (id='add_pass_update')...")
-                # Using a shorter timeout because it might not exist
                 temp_wait = WebDriverWait(self.driver, 5)
                 update_push_btn = temp_wait.until(EC.presence_of_element_located((By.ID, "add_pass_update")))
                 self._robust_click(update_push_btn, "final modal update button")
                 time.sleep(2)
             except Exception:
-                logger.info("Final modal (id='add_pass_update') not found or not required.")
+                pass
 
             # 7. Final Success Verification
-            # The user says success is indicated by being redirected to a URL with "?success="
             time.sleep(1)
-            final_url = self.driver.current_url
-            if "success=" in final_url:
-                logger.info("Success! Redirected to success page: {}".format(final_url))
+            if "success=" in self.driver.current_url:
+                logger.info("Success! Redirected to success page.")
                 return True
-            else:
-                # Even if we aren't on the success page yet, maybe it's still loading.
-                # Let's check one last time after a short delay.
-                time.sleep(2)
-                if "success=" in self.driver.current_url:
-                    logger.info("Success! Redirected to success page after delay.")
-                    return True
+            
+            time.sleep(2)
+            if "success=" in self.driver.current_url:
+                return True
                 
-            logger.info("Template {} update finished (Final URL: {}).".format(template_id, self.driver.current_url))
-            return True # Returning True because we reached the end of the flow
+            return True
 
         except Exception as e:
             logger.error("Automation flow failed at template {}: {}".format(template_id, e))
-            try:
-                curr_url = self.driver.current_url
-                logger.error("Failure occurred at URL: {}".format(curr_url))
-            except:
-                pass
             return False
 
     def update_icon(self, template_id, icon_path):
         """Updates the icon for a specific template."""
-        if not self.driver:
-            self.setup_driver()
-
         try:
             logger.info("Starting icon update for Template ID: {}".format(template_id))
-            
-            # 1. Navigate to templates page
-            self.driver.get("https://app.walletthat.com/platform/wallet/pass-templates.php")
-            time.sleep(2)
-
-            # 2. Search for the Template
-            search_input = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='search']")))
-            search_input.clear()
-            search_input.send_keys(template_id)
-            time.sleep(2)
-
-            # 3. Click Edit
-            actions_btn = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.dropdown-toggle")))
-            self._robust_click(actions_btn, "actions dropdown")
-            
-            edit_link = self.wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Edit")))
-            self._robust_click(edit_link, "edit link")
-            
-            # 4. Step 1: Click Continue
-            continue_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "step-1-button")))
-            self._robust_click(continue_btn, "step 1 continue button")
-            time.sleep(2)
+            self._navigate_to_edit(template_id)
 
             # 5. Click "Apple Wallet Fields" Tab
             apple_tab = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a[data-tab='apple-wallet-tab']")))
@@ -250,15 +203,12 @@ class WalletAutomation:
                 logger.info("Deleted old icon.")
                 time.sleep(1)
             except Exception as e:
-                logger.info("Delete icon button not found or not needed: {}".format(e))
+                logger.info("Delete icon button not found or not needed.")
 
             # 7. Upload New PNG
             try:
-                # Ensure the path is absolute for Selenium file upload
                 abs_icon_path = os.path.abspath(icon_path)
                 logger.info("Uploading icon from: {}".format(abs_icon_path))
-                
-                # The input is hidden inside the label, but we can send keys directly to the input[type='file']
                 file_input = self.driver.find_element(By.ID, "iconToUpload")
                 file_input.send_keys(abs_icon_path)
                 logger.info("Upload command sent successfully.")
@@ -274,13 +224,12 @@ class WalletAutomation:
 
             # 9. Final Modal Push (Optional)
             try:
-                logger.info("Checking for optional 'Update and Continue' modal button...")
                 temp_wait = WebDriverWait(self.driver, 5)
                 update_push_btn = temp_wait.until(EC.presence_of_element_located((By.ID, "add_pass_update")))
                 self._robust_click(update_push_btn, "final modal update button")
                 time.sleep(2)
             except Exception:
-                logger.info("Final modal (id='add_pass_update') not found or not required.")
+                pass
 
             # 10. Success Verification
             time.sleep(1)
@@ -288,13 +237,11 @@ class WalletAutomation:
                 logger.info("Success! Icon updated and redirected.")
                 return True
             
-            # Final attempt to check URL
             time.sleep(2)
             if "success=" in self.driver.current_url:
-                logger.info("Success! Icon updated after delay.")
                 return True
 
-            logger.info("Icon update finished for template {}. Final URL: {}".format(template_id, self.driver.current_url))
+            logger.info("Icon update finished for template {}.".format(template_id))
             return True
 
         except Exception as e:
