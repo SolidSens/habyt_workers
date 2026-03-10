@@ -158,14 +158,15 @@ class WalletAutomation:
             save_btn.click()
             time.sleep(2)
 
-            # 6. Final Push (Optional)
+            # 6. Final Modal Push
             try:
-                logger.info("Checking for final 'Update and Continue' push button...")
-                update_push_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Update and Continue')]")))
+                logger.info("Waiting for final 'Update and Continue' modal button (id='add_pass_update')...")
+                # Using the specific ID provided by the user for the modal button
+                update_push_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "add_pass_update")))
                 update_push_btn.click()
-                logger.info("Final push completed.")
+                logger.info("Final modal push completed.")
             except:
-                logger.info("No 'Update and Continue' button found or needed after Save.")
+                logger.info("Final update button (id='add_pass_update') not found or not needed.")
             
             logger.info("Template {} update completed successfully!".format(template_id))
             return True
