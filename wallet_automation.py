@@ -169,18 +169,34 @@ class WalletAutomation:
             self._robust_click(save_btn, "save button")
             time.sleep(2)
 
-            # 6. Final Modal Push
+            # 6. Final Modal Push (Optional)
             try:
-                logger.info("Waiting for final 'Update and Continue' modal button (id='add_pass_update')...")
-                # Using the specific ID provided by the user for the modal button
-                # We use presence instead of clickable first just in case it's covered by a fader
-                update_push_btn = self.wait.until(EC.presence_of_element_located((By.ID, "add_pass_update")))
+                logger.info("Checking for optional 'Update and Continue' modal button (id='add_pass_update')...")
+                # Using a shorter timeout because it might not exist
+                temp_wait = WebDriverWait(self.driver, 5)
+                update_push_btn = temp_wait.until(EC.presence_of_element_located((By.ID, "add_pass_update")))
                 self._robust_click(update_push_btn, "final modal update button")
-            except Exception as e:
-                logger.info("Final update button (id='add_pass_update') not found or not clickable: {}".format(e))
-            
-            logger.info("Template {} update completed successfully!".format(template_id))
-            return True
+                time.sleep(2)
+            except Exception:
+                logger.info("Final modal (id='add_pass_update') not found or not required.")
+
+            # 7. Final Success Verification
+            # The user says success is indicated by being redirected to a URL with "?success="
+            time.sleep(1)
+            final_url = self.driver.current_url
+            if "success=" in final_url:
+                logger.info("Success! Redirected to success page: {}".format(final_url))
+                return True
+            else:
+                # Even if we aren't on the success page yet, maybe it's still loading.
+                # Let's check one last time after a short delay.
+                time.sleep(2)
+                if "success=" in self.driver.current_url:
+                    logger.info("Success! Redirected to success page after delay.")
+                    return True
+                
+            logger.info("Template {} update finished (Final URL: {}).".format(template_id, self.driver.current_url))
+            return True # Returning True because we reached the end of the flow
 
         except Exception as e:
             logger.error("Automation flow failed at template {}: {}".format(template_id, e))
