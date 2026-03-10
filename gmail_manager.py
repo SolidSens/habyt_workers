@@ -134,19 +134,32 @@ class GmailManager:
         template_id_match = re.search(r"(?:Template ID|ID de Plantilla|ID):\s*([A-Za-z0-9]{10,50})", clean_body, re.IGNORECASE)
         
         # Regex for Currency (English or Spanish)
-        # We look for exactly 3 letters (MXN, USD, etc) surrounded by boundaries or at the end
-        # We avoid matching "Cur" from "Currency" by ensuring it's not the start of a longer word
-        currency_match = re.search(r"(?:Currency|Moneda|Currency to reapply):\s*\b([A-Z]{3})\b", clean_body, re.IGNORECASE)
+        # We handle "USD → MXN" formats and simple "Currency: MXN" formats.
+        # If an arrow is present, we capture the one after it (the target).
+        # Otherwise, we capture the one after the label.
+        currency = None
+        
+        # Try to find the pattern "XXX → YYY" first
+        arrow_match = re.search(r"\b[A-Z]{3}\b\s*[→→-]\s*\b([A-Z]{3})\b", clean_body)
+        if arrow_match:
+            currency = arrow_match.group(1)
+            logger.info("Found currency via arrow pattern: {}".format(currency))
+        else:
+            # Fallback to standard labels
+            label_match = re.search(r"(?:Currency|Moneda|Currency to reapply):\s*\b([A-Z]{3})\b", clean_body, re.IGNORECASE)
+            if label_match:
+                currency = label_match.group(1)
+                logger.info("Found currency via label pattern: {}".format(currency))
 
-        if template_id_match and currency_match:
+        if template_id_match and currency:
             return {
                 'template_id': template_id_match.group(1),
-                'currency': currency_match.group(1)
+                'currency': currency
             }
         
         if not template_id_match:
             logger.warning("Regex failed to find Template ID in cleaned body.")
-        if not currency_match:
+        if not currency:
             logger.warning("Regex failed to find Currency/Moneda in cleaned body.")
             
         return None
