@@ -33,10 +33,16 @@ class WalletAutomation:
         chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
         chrome_options.add_experimental_option("useAutomationExtension", False)
 
-        service = Service(ChromeDriverManager().install())
-        self.driver = webdriver.Chrome(service=service, options=chrome_options)
-        self.wait = WebDriverWait(self.driver, 20)
-        logger.info("Launched Chrome with profile: {}".format(self.profile_name))
+        try:
+            service = Service(ChromeDriverManager().install())
+            self.driver = webdriver.Chrome(service=service, options=chrome_options)
+            self.wait = WebDriverWait(self.driver, 20)
+            logger.info("Launched Chrome with profile: {}".format(self.profile_name))
+        except Exception as e:
+            if "user data directory is already in use" in str(e):
+                logger.error("CHROME ERROR: The Chrome profile you specified is already open by another Chrome instance.")
+                logger.error("FIX: Close all Chrome windows and try again, or create a dedicated profile for the worker.")
+            raise e
 
     def update_template(self, template_id, currency):
         """Perform the update flow for a specific template."""
