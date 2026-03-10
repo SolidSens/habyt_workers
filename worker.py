@@ -55,13 +55,21 @@ def main():
 
         # Step 3: Process each alert
         for alert in alerts:
-            template_id = alert['template_id']
-            currency = alert['currency']
             msg_id = alert['id']
+            template_id = alert['template_id']
+            alert_type = alert.get('alert_type', 'currency')
             
-            logger.info("Processing Template ID: {}, Currency: {}".format(template_id, currency))
+            logger.info("Processing {} alert for message {}".format(alert_type, msg_id))
             
-            success = wallet.update_template(template_id, currency)
+            success = False
+            if alert_type == 'currency':
+                currency = alert['currency']
+                logger.info("Updating Currency: Template ID: {}, Currency: {}".format(template_id, currency))
+                success = wallet.update_template(template_id, currency)
+            elif alert_type == 'icon':
+                icon_path = alert.get('icon_path')
+                logger.info("Updating Icon: Template ID: {}, Icon Path: {}".format(template_id, icon_path))
+                success = wallet.update_icon(template_id, icon_path)
             
             if success:
                 # Step 4: Mark email as read and STAR it only if update was successful

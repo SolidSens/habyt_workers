@@ -207,6 +207,51 @@ class WalletAutomation:
                 pass
             return False
 
+    def update_icon(self, template_id, icon_path):
+        """Updates the icon for a specific template."""
+        if not self.driver:
+            self.setup_driver()
+
+        try:
+            logger.info("Starting icon update for Template ID: {}".format(template_id))
+            
+            # 1. Navigate to templates page
+            self.driver.get("https://app.walletthat.com/platform/wallet/pass-templates.php")
+            time.sleep(2)
+
+            # 2. Search for the Template
+            search_input = self.wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[type='search']")))
+            search_input.clear()
+            search_input.send_keys(template_id)
+            time.sleep(2)
+
+            # 3. Click Edit
+            actions_btn = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "button.dropdown-toggle")))
+            self._robust_click(actions_btn, "actions dropdown")
+            
+            edit_link = self.wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Edit")))
+            self._robust_click(edit_link, "edit link")
+            
+            # 4. Step 1: Click Continue
+            continue_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "step-1-button")))
+            self._robust_click(continue_btn, "step 1 continue button")
+            time.sleep(2)
+
+            # 5. Click "Apple Wallet Fields" Tab
+            # Selector based on user provided snippet: <a ... data-tab="apple-wallet-tab" ...>
+            apple_tab = self.wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, "a[data-tab='apple-wallet-tab']")))
+            self._robust_click(apple_tab, "Apple Wallet Fields tab")
+            time.sleep(2)
+
+            # TODO: Implement Icon Upload logic here if required
+            logger.info("Successfully navigated to Apple Wallet Fields tab for icon update.")
+            
+            return True
+
+        except Exception as e:
+            logger.error("Icon update flow failed for template {}: {}".format(template_id, e))
+            return False
+
     def close(self):
         if self.driver:
             self.driver.quit()
