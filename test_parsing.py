@@ -16,9 +16,16 @@ def parse_email_body(body):
     arrow_match = re.search(r"\b[A-Z]{3}\b\s*[→→-]\s*\b([A-Z]{3})\b", clean_body)
     if arrow_match:
         currency = arrow_match.group(1)
-    else:
-        # Fallback to standard labels
-        label_match = re.search(r"(?:Currency|Moneda|Currency to reapply|New Currency Selected):\s*\b([A-Z]{3})\b", clean_body, re.IGNORECASE)
+    
+    # Then try specific labels that might contain common words (like "New Currency Selected")
+    if not currency:
+        new_sel_match = re.search(r"New Currency Selected:\s*\b([A-Z]{3})\b", clean_body, re.IGNORECASE)
+        if new_sel_match:
+            currency = new_sel_match.group(1)
+
+    # Fallback to standard labels if still not found
+    if not currency:
+        label_match = re.search(r"(?:Currency|Moneda|Currency to reapply):\s*\b([A-Z]{3})\b", clean_body, re.IGNORECASE)
         if label_match:
             currency = label_match.group(1)
 
@@ -49,6 +56,13 @@ class TestEmailParsing(unittest.TestCase):
 
     def test_parse_arrow_format(self):
         body = "ID: 9ceed34b710db8a635cd16fba323bad217343c93 Currency Changed: USD → MXN"
+        expected = {'template_id': '9ceed34b710db8a635cd16fba323bad217343c93', 'currency': 'MXN'}
+        result = parse_email_body(body)
+        self.assertEqual(result, expected)
+
+    def test_parse_nested_currency_labels(self):
+        # This simulates the case where "Currency:" is followed by "New Currency Selected: MXN"
+        body = "Template ID: 9ceed34b710db8a635cd16fba323bad217343c93\nCurrency: New Currency Selected: MXN"
         expected = {'template_id': '9ceed34b710db8a635cd16fba323bad217343c93', 'currency': 'MXN'}
         result = parse_email_body(body)
         self.assertEqual(result, expected)

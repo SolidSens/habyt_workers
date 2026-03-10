@@ -144,12 +144,20 @@ class GmailManager:
         if arrow_match:
             currency = arrow_match.group(1)
             logger.info("Found currency via arrow pattern: {}".format(currency))
-        else:
-            # Fallback to standard labels
-            label_match = re.search(r"(?:Currency|Moneda|Currency to reapply|New Currency Selected):\s*\b([A-Z]{3})\b", clean_body, re.IGNORECASE)
+        
+        # Then try specific labels that might contain common words (like "New Currency Selected")
+        if not currency:
+            new_sel_match = re.search(r"New Currency Selected:\s*\b([A-Z]{3})\b", clean_body, re.IGNORECASE)
+            if new_sel_match:
+                currency = new_sel_match.group(1)
+                logger.info("Found currency via 'New Currency Selected' pattern: {}".format(currency))
+
+        # Fallback to standard labels if still not found
+        if not currency:
+            label_match = re.search(r"(?:Currency|Moneda|Currency to reapply):\s*\b([A-Z]{3})\b", clean_body, re.IGNORECASE)
             if label_match:
                 currency = label_match.group(1)
-                logger.info("Found currency via label pattern: {}".format(currency))
+                logger.info("Found currency via generic label pattern: {}".format(currency))
 
         if template_id_match and currency:
             return {
