@@ -146,7 +146,7 @@ class GmailManager:
             logger.info("Found currency via arrow pattern: {}".format(currency))
         else:
             # Fallback to standard labels
-            label_match = re.search(r"(?:Currency|Moneda|Currency to reapply):\s*\b([A-Z]{3})\b", clean_body, re.IGNORECASE)
+            label_match = re.search(r"(?:Currency|Moneda|Currency to reapply|New Currency Selected):\s*\b([A-Z]{3})\b", clean_body, re.IGNORECASE)
             if label_match:
                 currency = label_match.group(1)
                 logger.info("Found currency via label pattern: {}".format(currency))
