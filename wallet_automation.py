@@ -74,17 +74,21 @@ class WalletAutomation:
                 logger.info("Already on the templates page.")
 
             # 1. Filter by Template ID
-            logger.info("Waiting for search input...")
-            search_input = self.wait.until(EC.visibility_of_element_located((By.CSS_SELECTOR, "input[type='search']")))
+            logger.info("Waiting for search input (id='searchtxt')...")
+            search_input = self.wait.until(EC.visibility_of_element_located((By.ID, "searchtxt")))
             logger.info("Search input found. Typing Template ID: {}".format(template_id))
             search_input.clear()
             search_input.send_keys(template_id)
+            
+            logger.info("Clicking search button (id='searchbtn')...")
+            search_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "searchbtn")))
+            search_btn.click()
             time.sleep(2) # Give it extra time for the table to filter
 
             # 2. Click Actions -> Edit
             logger.info("Looking for Actions button for template {}...".format(template_id))
-            # Try a more broad XPATH finding the TD with template ID and then the button in that row
-            xpath_actions = "//td[contains(., '{}')]/following-sibling::td//button[contains(., 'Actions')]".format(template_id)
+            # New XPATH based on the specific structure: find the row, then the button
+            xpath_actions = "//td[contains(text(), '{}')]/following-sibling::td//button[contains(., 'Actions')]".format(template_id)
             actions_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath_actions)))
             logger.info("Actions button found. Clicking...")
             actions_btn.click()
