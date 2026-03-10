@@ -64,42 +64,62 @@ class WalletAutomation:
         """Perform the update flow for a specific template."""
         if not self.driver:
             self.start_browser()
+        
+        # Ensure wait is initialized (lint fix and safety)
+        if self.driver and not self.wait:
+            self.wait = WebDriverWait(self.driver, 20)
 
         try:
             url = "https://app.walletthat.com/platform/wallet/pass-templates.php"
             if self.driver.current_url != url:
                 logger.info("Current URL is different, navigating to: {}".format(url))
                 self.driver.get(url)
+                time.sleep(2) # Give it time to load
             else:
                 logger.info("Already on the templates page.")
 
             # 1. Filter by Template ID
-            logger.info("Waiting for search input (id='searchtxt')...")
-            search_input = self.wait.until(EC.visibility_of_element_located((By.ID, "searchtxt")))
-            logger.info("Search input found. Typing Template ID: {}".format(template_id))
+            logger.info("Locating search input...")
+            search_input = None
+            for selector in [(By.ID, "searchtxt"), (By.CSS_SELECTOR, "input[type='search']")]:
+                try:
+                    search_input = self.wait.until(EC.visibility_of_element_located(selector))
+                    logger.info("Search input found using selector: {}".format(selector))
+                    break
+                except:
+                    continue
+            
+            if not search_input:
+                raise Exception("Could not find search input using any known selector.")
+
+            logger.info("Typing Template ID: {}".format(template_id))
             search_input.clear()
             search_input.send_keys(template_id)
             
-            logger.info("Clicking search button (id='searchbtn')...")
-            search_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "searchbtn")))
-            search_btn.click()
-            time.sleep(2) # Give it extra time for the table to filter
+            # Try to click search button if exists
+            try:
+                search_btn = self.driver.find_element(By.ID, "searchbtn")
+                logger.info("Clicking search button (id='searchbtn')...")
+                search_btn.click()
+            except:
+                logger.info("Search button not found or not clickable, pressing ENTER on input...")
+                from selenium.webdriver.common.keys import Keys
+                search_input.send_keys(Keys.ENTER)
+            
+            time.sleep(3) # Give it extra time for the table to filter
 
             # 2. Click Actions -> Edit
             logger.info("Looking for Actions dropdown (id='actionDropdownMenu')...")
-            # The user provided id="actionDropdownMenu"
             actions_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "actionDropdownMenu")))
             logger.info("Actions button found. Clicking...")
             actions_btn.click()
 
             logger.info("Waiting for Edit option in dropdown...")
-            # The Edit link is a 'dropdown-item' containing 'Edit'
             edit_link = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(@class, 'dropdown-item') and contains(., 'Edit')]")))
             logger.info("Edit link found. Clicking...")
             edit_link.click()
 
             logger.info("Waiting for first Continue button (id='step-1-button')...")
-            # The user provided id="step-1-button"
             continue_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "step-1-button")))
             logger.info("Step 1 Continue button found. Clicking...")
             continue_btn.click()
@@ -118,7 +138,7 @@ class WalletAutomation:
                     logger.info("Step {}: Clicking Continue...".format(i+1))
                     next_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Continue')]")))
                     next_btn.click()
-                    time.sleep(1.5)
+                    time.sleep(2)
                 except Exception as e:
                     logger.warning("Wizard navigation loop notice: {}".format(e))
                     if i == max_steps - 1:
@@ -151,7 +171,6 @@ class WalletAutomation:
 
         except Exception as e:
             logger.error("Automation flow failed at template {}: {}".format(template_id, e))
-            # Just for debug
             try:
                 curr_url = self.driver.current_url
                 logger.error("Failure occurred at URL: {}".format(curr_url))
