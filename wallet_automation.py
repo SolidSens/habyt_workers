@@ -86,20 +86,21 @@ class WalletAutomation:
             time.sleep(2) # Give it extra time for the table to filter
 
             # 2. Click Actions -> Edit
-            logger.info("Looking for Actions button for template {}...".format(template_id))
-            # New XPATH based on the specific structure: find the row, then the button
-            xpath_actions = "//td[contains(text(), '{}')]/following-sibling::td//button[contains(., 'Actions')]".format(template_id)
-            actions_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath_actions)))
+            logger.info("Looking for Actions dropdown (id='actionDropdownMenu')...")
+            # The user provided id="actionDropdownMenu"
+            actions_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "actionDropdownMenu")))
             logger.info("Actions button found. Clicking...")
             actions_btn.click()
 
-            logger.info("Waiting for Edit link...")
-            edit_link = self.wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Edit")))
+            logger.info("Waiting for Edit option in dropdown...")
+            # The Edit link is a 'dropdown-item' containing 'Edit'
+            edit_link = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(@class, 'dropdown-item') and contains(., 'Edit')]")))
             logger.info("Edit link found. Clicking...")
             edit_link.click()
 
             logger.info("Waiting for first Continue button...")
-            continue_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Continue')]")))
+            # Some pages might use different text for the first button, let's be flexible
+            continue_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Continue') or contains(text(), 'continuar')]")))
             logger.info("Continue button found. Clicking...")
             continue_btn.click()
 
