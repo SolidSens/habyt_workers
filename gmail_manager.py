@@ -45,23 +45,58 @@ class GmailManager:
             return None
 
     def get_unread_alerts(self):
-        """Fetches unread emails with label 'Alerts Habyt' and specific subject."""
+        """Fetches unread emails using a broader query and logs details for debugging."""
         if not self.service:
             self.authenticate()
 
-        query = 'label:"Alerts Habyt" is:unread subject:"Alerta: Cambio de"'
+        # Debug: List all labels to verify names
         try:
-            results = self.service.users().messages().list(userId='me', q=query).execute()
-            messages = results.get('messages', [])
-            
-            alert_data = []
-            for msg in messages:
-                msg_id = msg['id']
+            results = self.service.users().labels().list(userId='me').execute()
+            labels = results.get('labels', [])
+            label_names = [l['name'] for l in labels]
+            logger.info("Available Gmail labels: {}".format(", ".join(label_names)))
+        except Exception as e:
+            logger.error("Could not list labels: {}".format(e))
+
+        # Try a broader query that doesn't strictly depend on the label first
+        # subject:"Alerta: Cambio" is the core filter
+        # from:hello@solidsens.com is the core sender
+        queries = [
+            'label:"Alerts Habyt" is:unread subject:"Alerta: Cambio"',
+            'from:hello@solidsens.com is:unread subject:"Alerta: Cambio"'
+        ]
+        
+        all_messages = []
+        for query in queries:
+            try:
+                logger.info("Searching with query: {}".format(query))
+                results = self.service.users().messages().list(userId='me', q=query).execute()
+                messages = results.get('messages', [])
+                logger.info("Found {} messages with this query.".format(len(messages)))
+                all_messages.extend(messages)
+            except HttpError as error:
+                logger.error("An error occurred during search: {}".format(error))
+
+        # Remove duplicates based on ID
+        unique_msg_ids = set()
+        unique_messages = []
+        for msg in all_messages:
+            if msg['id'] not in unique_msg_ids:
+                unique_msg_ids.add(msg['id'])
+                unique_messages.append(msg)
+
+        alert_data = []
+        for msg in unique_messages:
+            msg_id = msg['id']
+            try:
                 full_msg = self.service.users().messages().get(userId='me', id=msg_id).execute()
                 
                 payload = full_msg.get('payload', {})
+                headers = payload.get('headers', [])
+                subject = next((h['value'] for h in headers if h['name'] == 'Subject'), "No Subject")
+                logger.info("Processing message ID: {}, Subject: {}".format(msg_id, subject))
+
                 body = ""
-                
                 if 'parts' in payload:
                     for part in payload['parts']:
                         if part['mimeType'] == 'text/plain':
@@ -75,12 +110,11 @@ class GmailManager:
                     parsed['id'] = msg_id
                     alert_data.append(parsed)
                 else:
-                    logger.warning("Could not parse email body for message {}".format(msg_id))
+                    logger.warning("Could not parse email body for message {}. Body length: {}".format(msg_id, len(body)))
+            except Exception as e:
+                logger.error("Error retrieving full message {}: {}".format(msg_id, e))
 
-            return alert_data
-        except HttpError as error:
-            logger.error("An error occurred while fetching emails: {}".format(error))
-            return []
+        return alert_data
 
     def parse_email_body(self, body):
         """
