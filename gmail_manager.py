@@ -101,6 +101,8 @@ class GmailManager:
                 alert_type = 'currency'
                 if 'Icono' in subject:
                     alert_type = 'icon'
+                elif 'Cuenta Eliminada' in subject:
+                    alert_type = 'deletion'
 
                 plain_body = ""
                 html_body = ""
@@ -116,7 +118,7 @@ class GmailManager:
                     else:
                         plain_body = base64.urlsafe_b64decode(payload['body']['data']).decode('utf-8')
 
-                body_for_parsing = plain_body if plain_body else html_body
+                body_for_parsing = html_body if alert_type == 'deletion' else (plain_body if plain_body else html_body)
                 parsed = self.parse_email_body(body_for_parsing, alert_type)
 
                 if parsed:
@@ -261,6 +263,19 @@ class GmailManager:
                 if label_match:
                     currency = label_match.group(1)
                     logger.info("Found currency via generic label pattern: {}".format(currency))
+
+        if alert_type == 'deletion':
+            # Extract all template IDs from the table
+            # They usually look like 40-character hex strings
+            # We look for them in the context of "ID WalletThat"
+            # Since it's a table, let's look for all matches of the ID pattern
+            ids = re.findall(r'\b([A-Za-z0-9]{30,64})\b', clean_body)
+            # Filter out known non-IDs if any, or just return unique ones
+            unique_ids = list(set(ids))
+            if unique_ids:
+                logger.info("Found {} IDs in deletion alert: {}".format(len(unique_ids), unique_ids))
+                return {'template_ids': unique_ids}
+            return None
 
         if template_id_match:
             template_id = template_id_match.group(1)

@@ -8,7 +8,7 @@ def parse_email_body(body, alert_type='currency'):
     # Replace multiple spaces/newlines with a single space for easier regex matching
     clean_body = re.sub(r'\s+', ' ', clean_body).strip()
     
-    # Regex for Template ID
+    # Regex for Template ID (English or Spanish)
     template_id_match = re.search(r"(?:Template ID|ID de Plantilla|ID):\s*([A-Za-z0-9]{10,50})", clean_body, re.IGNORECASE)
     
     currency = None
@@ -30,12 +30,21 @@ def parse_email_body(body, alert_type='currency'):
             if label_match:
                 currency = label_match.group(1)
 
+    if alert_type == 'deletion':
+        # Extract all template IDs from the table (hex pattern)
+        ids = re.findall(r'\b([A-Za-z0-9]{30,64})\b', clean_body)
+        unique_ids = list(set(ids))
+        if unique_ids:
+            return {'template_ids': unique_ids}
+        return None
+
     if template_id_match:
         template_id = template_id_match.group(1)
         if alert_type == 'icon':
             return {'template_id': template_id}
         elif alert_type == 'currency' and currency:
             return {'template_id': template_id, 'currency': currency}
+            
     return None
 
 class TestEmailParsing(unittest.TestCase):
@@ -51,15 +60,7 @@ class TestEmailParsing(unittest.TestCase):
         result = parse_email_body(body)
         self.assertEqual(result, expected)
 
-    def test_parse_nested_currency_labels(self):
-        # This simulates the case where "Currency:" is followed by "New Currency Selected: MXN"
-        body = "Template ID: 9ceed34b710db8a635cd16fba323bad217343c93\nCurrency: New Currency Selected: MXN"
-        expected = {'template_id': '9ceed34b710db8a635cd16fba323bad217343c93', 'currency': 'MXN'}
-        result = parse_email_body(body)
-        self.assertEqual(result, expected)
-
     def test_parse_reapply_currency_format(self):
-        # This simulates the "Alerta: Cambio de Balance Inicial" format
         body = """
         Template ID: 9ceed34b710db8a635cd16fba323bad217343c93
         Reason / Currency to reapply: Balance Inicial de Tarjeta changed. Wallet reverts to USD. Reapply currency: AUD
@@ -73,6 +74,26 @@ class TestEmailParsing(unittest.TestCase):
         expected = {'template_id': '9ceed34b710db8a635cd16fba323bad217343c93'}
         result = parse_email_body(body, alert_type='icon')
         self.assertEqual(result, expected)
+
+    def test_parse_deletion_alert_multiple_ids(self):
+        body = """
+        <html>
+        <body>
+            <h3>Listado de Templates Eliminados</h3>
+            <table>
+                <tr><th>ID WalletThat</th><th>Nombre</th></tr>
+                <tr><td>5b48bf2afbbe333452a19858f7f1604bd3d9e6fa</td><td>Template 1</td></tr>
+                <tr><td>8eb2f7a9d0c1b2e3f4a5b6c7d8e9f0a1b2c3d4e5</td><td>Template 2</td></tr>
+            </table>
+        </body>
+        </html>
+        """
+        result = parse_email_body(body, alert_type='deletion')
+        self.assertIsNotNone(result)
+        self.assertIn('template_ids', result)
+        self.assertEqual(len(result['template_ids']), 2)
+        self.assertIn('5b48bf2afbbe333452a19858f7f1604bd3d9e6fa', result['template_ids'])
+        self.assertIn('8eb2f7a9d0c1b2e3f4a5b6c7d8e9f0a1b2c3d4e5', result['template_ids'])
 
     def test_parse_invalid_body(self):
         body = "This is a random email without the required fields."

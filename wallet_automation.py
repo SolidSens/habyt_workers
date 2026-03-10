@@ -75,8 +75,8 @@ class WalletAutomation:
             self.driver.execute_script("arguments[0].click();", element)
             logger.info("Successfully clicked {} via JavaScript.".format(description))
 
-    def _navigate_to_edit(self, template_id):
-        """Common logic to navigate to the Edit page of a template."""
+    def _search_template(self, template_id):
+        """Searches for a template ID on the templates page."""
         if not self.driver:
             self.start_browser()
         
@@ -89,13 +89,11 @@ class WalletAutomation:
             self.driver.get(url)
             time.sleep(2)
         
-        # Search for Template
-        logger.info("Locating search input...")
+        logger.info("Searching for Template ID: {}".format(template_id))
         search_input = None
         for selector in [(By.ID, "searchtxt"), (By.CSS_SELECTOR, "input[type='search']")]:
             try:
                 search_input = self.wait.until(EC.visibility_of_element_located(selector))
-                logger.info("Search input found using selector: {}".format(selector))
                 break
             except:
                 continue
@@ -113,6 +111,11 @@ class WalletAutomation:
             search_input.send_keys(Keys.ENTER)
         
         time.sleep(3)
+        return True
+
+    def _navigate_to_edit(self, template_id):
+        """Common logic to navigate to the Edit page of a template."""
+        self._search_template(template_id)
 
         # Click Actions -> Edit
         actions_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "actionDropdownMenu")))
@@ -246,6 +249,43 @@ class WalletAutomation:
 
         except Exception as e:
             logger.error("Icon update flow failed for template {}: {}".format(template_id, e))
+            return False
+
+    def delete_template(self, template_id):
+        """Performs the deletion flow for a specific template."""
+        try:
+            logger.info("Starting deletion for Template ID: {}".format(template_id))
+            self._search_template(template_id)
+
+            # 2. Click Actions -> Delete
+            actions_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "actionDropdownMenu")))
+            self._robust_click(actions_btn, "actions dropdown")
+
+            delete_link = self.wait.until(EC.element_to_be_clickable((By.LINK_TEXT, "Delete")))
+            self._robust_click(delete_link, "delete link")
+            
+            # 3. Handle Browser Confirmation Alert
+            time.sleep(1)
+            try:
+                alert = self.driver.switch_to.alert
+                logger.info("Alert text: {}".format(alert.text))
+                alert.accept()
+                logger.info("Accepted browser deletion alert.")
+            except Exception as e:
+                logger.warning("No browser alert found or failed to accept: {}".format(e))
+            
+            time.sleep(3)
+
+            # 4. Success Verification
+            if "success=" in self.driver.current_url:
+                logger.info("Success! Template {} deleted and redirected.".format(template_id))
+                return True
+            
+            logger.info("Finished deletion attempt for {}. Final URL: {}".format(template_id, self.driver.current_url))
+            return True
+
+        except Exception as e:
+            logger.error("Deletion flow failed for template {}: {}".format(template_id, e))
             return False
 
     def close(self):

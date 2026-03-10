@@ -56,20 +56,29 @@ def main():
         # Step 3: Process each alert
         for alert in alerts:
             msg_id = alert['id']
-            template_id = alert['template_id']
             alert_type = alert.get('alert_type', 'currency')
             
             logger.info("Processing {} alert for message {}".format(alert_type, msg_id))
             
             success = False
-            if alert_type == 'currency':
-                currency = alert['currency']
-                logger.info("Updating Currency: Template ID: {}, Currency: {}".format(template_id, currency))
-                success = wallet.update_template(template_id, currency)
-            elif alert_type == 'icon':
-                icon_path = alert.get('icon_path')
-                logger.info("Updating Icon: Template ID: {}, Icon Path: {}".format(template_id, icon_path))
-                success = wallet.update_icon(template_id, icon_path)
+            if alert_type == 'deletion':
+                template_ids = alert.get('template_ids', [])
+                logger.info("Processing deletion alert for message {}. IDs: {}".format(msg_id, template_ids))
+                all_success = True
+                for tid in template_ids:
+                    if not wallet.delete_template(tid):
+                        all_success = False
+                success = all_success
+            else:
+                template_id = alert.get('template_id')
+                if alert_type == 'currency':
+                    currency = alert['currency']
+                    logger.info("Updating Currency: Template ID: {}, Currency: {}".format(template_id, currency))
+                    success = wallet.update_template(template_id, currency)
+                elif alert_type == 'icon':
+                    icon_path = alert.get('icon_path')
+                    logger.info("Updating Icon: Template ID: {}, Icon Path: {}".format(template_id, icon_path))
+                    success = wallet.update_icon(template_id, icon_path)
             
             if success:
                 # Step 4: Mark email as read and STAR it only if update was successful
