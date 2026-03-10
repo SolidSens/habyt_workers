@@ -158,9 +158,14 @@ class WalletAutomation:
             save_btn.click()
             time.sleep(2)
 
-            logger.info("Pushing update...")
-            update_push_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Update and Continue')]")))
-            update_push_btn.click()
+            # 6. Final Push (Optional)
+            try:
+                logger.info("Checking for final 'Update and Continue' push button...")
+                update_push_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Update and Continue')]")))
+                update_push_btn.click()
+                logger.info("Final push completed.")
+            except:
+                logger.info("No 'Update and Continue' button found or needed after Save.")
             
             logger.info("Template {} update completed successfully!".format(template_id))
             return True
