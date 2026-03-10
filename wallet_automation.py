@@ -98,10 +98,10 @@ class WalletAutomation:
             logger.info("Edit link found. Clicking...")
             edit_link.click()
 
-            logger.info("Waiting for first Continue button...")
-            # Some pages might use different text for the first button, let's be flexible
-            continue_btn = self.wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Continue') or contains(text(), 'continuar')]")))
-            logger.info("Continue button found. Clicking...")
+            logger.info("Waiting for first Continue button (id='step-1-button')...")
+            # The user provided id="step-1-button"
+            continue_btn = self.wait.until(EC.element_to_be_clickable((By.ID, "step-1-button")))
+            logger.info("Step 1 Continue button found. Clicking...")
             continue_btn.click()
 
             # 3. Navigate until "Universal Fields" section is reached
