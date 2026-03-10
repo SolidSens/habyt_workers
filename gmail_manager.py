@@ -127,15 +127,16 @@ class GmailManager:
         # Replace multiple spaces/newlines with a single space for easier regex matching
         clean_body = re.sub(r'\s+', ' ', clean_body).strip()
         
-        logger.info("Cleaned body snippet for parsing: {}".format(clean_body[:200]))
+        logger.info("CLEANED BODY FOR PARSING: {}".format(clean_body))
 
         # Regex for Template ID (English or Spanish)
         # Matches: "Template ID: XYZ", "ID de Plantilla: XYZ", etc.
-        template_id_match = re.search(r"(?:Template ID|ID de Plantilla|ID):\s*([A-Za-z0-9]+)", clean_body, re.IGNORECASE)
+        template_id_match = re.search(r"(?:Template ID|ID de Plantilla|ID):\s*([A-Za-z0-9]{10,50})", clean_body, re.IGNORECASE)
         
         # Regex for Currency (English or Spanish)
-        # Matches: "Currency: MXN", "Moneda: MXN", "Currency to reapply: MXN", etc.
-        currency_match = re.search(r"(?:Currency|Moneda|Currency to reapply):\s*([A-Z]{3})", clean_body, re.IGNORECASE)
+        # We look for exactly 3 letters (MXN, USD, etc) surrounded by boundaries or at the end
+        # We avoid matching "Cur" from "Currency" by ensuring it's not the start of a longer word
+        currency_match = re.search(r"(?:Currency|Moneda|Currency to reapply):\s*\b([A-Z]{3})\b", clean_body, re.IGNORECASE)
 
         if template_id_match and currency_match:
             return {
