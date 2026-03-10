@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Google API
+credentials.json
+token.json
+
+# IDEs
+.vscode/
+.idea/
