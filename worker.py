@@ -20,9 +20,10 @@ def main():
     chrome_data_dir = os.getenv('CHROME_USER_DATA_DIR')
     chrome_profile = os.getenv('CHROME_PROFILE_NAME', 'Default')
     chrome_binary = os.getenv('CHROME_BINARY_PATH')
+    chrome_debug_port = os.getenv('CHROME_DEBUG_PORT')
     
-    if not chrome_data_dir:
-        logger.error("CHROME_USER_DATA_DIR not set in .env file.")
+    if not chrome_debug_port and not chrome_data_dir:
+        logger.error("Either CHROME_DEBUG_PORT or CHROME_USER_DATA_DIR must be set in .env file.")
         return
 
     # Initialize managers
@@ -30,7 +31,8 @@ def main():
     wallet = WalletAutomation(
         user_data_dir=chrome_data_dir, 
         profile_name=chrome_profile,
-        chrome_binary_path=chrome_binary if chrome_binary else None
+        chrome_binary_path=chrome_binary if chrome_binary else None,
+        debugger_address="localhost:{}".format(chrome_debug_port) if chrome_debug_port else None
     )
 
     try:

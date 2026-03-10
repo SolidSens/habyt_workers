@@ -12,36 +12,50 @@ from webdriver_manager.chrome import ChromeDriverManager
 logger = logging.getLogger(__name__)
 
 class WalletAutomation:
-    def __init__(self, user_data_dir, profile_name="Default", chrome_binary_path=None):
+    def __init__(self, user_data_dir=None, profile_name="Default", chrome_binary_path=None, debugger_address=None):
         self.user_data_dir = user_data_dir
         self.profile_name = profile_name
         self.chrome_binary_path = chrome_binary_path
+        self.debugger_address = debugger_address
         self.driver = None
         self.wait = None
 
     def start_browser(self):
-        """Initializes the Chrome browser with the persistent user profile."""
+        """Initializes or connects to a Chrome browser."""
         chrome_options = Options()
-        chrome_options.add_argument("--user-data-dir={}".format(self.user_data_dir))
-        chrome_options.add_argument("--profile-directory={}".format(self.profile_name))
         
-        if self.chrome_binary_path:
-            chrome_options.binary_location = self.chrome_binary_path
+        if self.debugger_address:
+            # Connect to existing browser
+            chrome_options.debugger_address = self.debugger_address
+            logger.info("Connecting to existing Chrome at {}".format(self.debugger_address))
+        else:
+            # Launch new browser with profile
+            if not self.user_data_dir:
+                raise ValueError("user_data_dir must be provided if not using debugger_address")
+                
+            chrome_options.add_argument("--user-data-dir={}".format(self.user_data_dir))
+            chrome_options.add_argument("--profile-directory={}".format(self.profile_name))
+            
+            if self.chrome_binary_path:
+                chrome_options.binary_location = self.chrome_binary_path
 
-        # Avoid basic bot detection
-        chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-        chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        chrome_options.add_experimental_option("useAutomationExtension", False)
+            # Avoid basic bot detection
+            chrome_options.add_argument("--disable-blink-features=AutomationControlled")
+            chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+            chrome_options.add_experimental_option("useAutomationExtension", False)
 
         try:
             service = Service(ChromeDriverManager().install())
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
             self.wait = WebDriverWait(self.driver, 20)
-            logger.info("Launched Chrome with profile: {}".format(self.profile_name))
+            if not self.debugger_address:
+                logger.info("Launched Chrome with profile: {}".format(self.profile_name))
+            else:
+                logger.info("Successfully attached to existing Chrome instance.")
         except Exception as e:
             if "user data directory is already in use" in str(e):
-                logger.error("CHROME ERROR: The Chrome profile you specified is already open by another Chrome instance.")
-                logger.error("FIX: Close all Chrome windows and try again, or create a dedicated profile for the worker.")
+                logger.error("CHROME ERROR: The Chrome profile you specified is already open.")
+                logger.error("FIX: Either close Chrome, or use the 'Remote Debugging' method (see walkthrough).")
             raise e
 
     def update_template(self, template_id, currency):
