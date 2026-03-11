@@ -96,16 +96,62 @@ class WalletAutomation:
         # If we see the success string even after timeout (e.g. slow load), return True
         return "success=" in final_url or "message=" in final_url
 
-    def _search_template(self, template_id):
-        """Searches for a template ID on the templates page."""
+        return "success=" in final_url or "message=" in final_url
+
+    def ensure_logged_in(self):
+        """Checks if logged out and performs login if necessary."""
         if not self.driver:
             self.start_browser()
         
+        target_url = "https://app.walletthat.com/platform/wallet/pass-templates.php"
+        
+        # Check current URL or presence of login button
+        login_btn_selector = (By.CSS_SELECTOR, "button[title='Click here to login'], button[aria-label='Click to login']")
+        
+        try:
+            # First, check if login button exists on current page or login page
+            login_buttons = self.driver.find_elements(*login_btn_selector)
+            if login_buttons:
+                logger.info("Login button detected. Session may have expired. Clicking Login...")
+                self._robust_click(login_buttons[0], "login button")
+                time.sleep(3)
+                
+                # After login click, check for obstructive modals
+                close_btn_selector = (By.CSS_SELECTOR, "button.btn-close[data-bs-dismiss='modal'], .modal-footer button[data-bs-dismiss='modal']")
+                try:
+                    close_buttons = self.driver.find_elements(*close_btn_selector)
+                    for btn in close_buttons:
+                        if btn.is_displayed():
+                            logger.info("Closing obstructive modal...")
+                            self._robust_click(btn, "modal close button")
+                            time.sleep(1)
+                except:
+                    pass
+            
+            # Final check: are we on the target page?
+            if target_url not in self.driver.current_url:
+                logger.info("Not on templates page. Navigating to: {}".format(target_url))
+                self.driver.get(target_url)
+                time.sleep(3)
+                
+        except Exception as e:
+            logger.error("Error during ensure_logged_in: {}".format(e))
+            # Fallback re-navigation
+            self.driver.get(target_url)
+            time.sleep(3)
+
+    def _search_template(self, template_id):
+        """Searches for a template ID on the templates page."""
+        self.ensure_logged_in()
+        
+        if not self.driver:
+            return False
+            
         if self.driver and not self.wait:
             self.wait = WebDriverWait(self.driver, 20)
 
         url = "https://app.walletthat.com/platform/wallet/pass-templates.php"
-        if self.driver.current_url != url:
+        if self.driver and self.driver.current_url != url:
             logger.info("Navigating to: {}".format(url))
             self.driver.get(url)
             time.sleep(2)
