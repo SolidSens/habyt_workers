@@ -30,11 +30,11 @@ def run_worker():
         logger.error(".env FILE NOT FOUND AT {}".format(env_path))
     
     # Telegram config
-    tg_token = os.getenv('TELEGRAM_TOKEN', '').strip(' "')
-    tg_chat_id = os.getenv('TELEGRAM_CHAT_ID', '').strip(' "')
+    tg_token = os.getenv('HABYT_TELEGRAM_TOKEN', os.getenv('TELEGRAM_TOKEN', '')).strip(' "')
+    tg_chat_id = os.getenv('HABYT_TELEGRAM_CHAT_ID', os.getenv('TELEGRAM_CHAT_ID', '')).strip(' "')
     
-    logger.info("TELEGRAM_TOKEN: [FOUND]" if tg_token else "TELEGRAM_TOKEN: [MISSING]")
-    logger.info("TELEGRAM_CHAT_ID: [FOUND]" if tg_chat_id else "TELEGRAM_CHAT_ID: [MISSING]")
+    logger.info("HABYT_TELEGRAM_TOKEN: [FOUND]" if tg_token else "HABYT_TELEGRAM_TOKEN: [MISSING]")
+    logger.info("HABYT_TELEGRAM_CHAT_ID: [FOUND]" if tg_chat_id else "HABYT_TELEGRAM_CHAT_ID: [MISSING]")
     
     notifier = TelegramNotifier(token=tg_token, chat_id=tg_chat_id)
     
