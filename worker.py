@@ -27,6 +27,10 @@ def run_worker():
     # Telegram config
     tg_token = os.getenv('TELEGRAM_TOKEN')
     tg_chat_id = os.getenv('TELEGRAM_CHAT_ID')
+    
+    logger.info("DEBUG: TELEGRAM_TOKEN loaded: {}".format("Yes" if tg_token else "No"))
+    logger.info("DEBUG: TELEGRAM_CHAT_ID loaded: {}".format("Yes" if tg_chat_id else "No"))
+    
     notifier = TelegramNotifier(token=tg_token, chat_id=tg_chat_id)
     
     # Initialize managers
