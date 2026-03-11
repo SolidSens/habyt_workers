@@ -141,7 +141,9 @@ def run_worker():
 
     except Exception as e:
         logger.error("An error occurred during execution: {}".format(e))
-        notifier.send_message("<b>❌ CRITICAL ERROR in Habyt Worker Job</b>\n\n<code>{}</code>".format(e))
+        import html
+        safe_error = html.escape(str(e))
+        notifier.send_message("<b>❌ CRITICAL ERROR in Habyt Worker Job</b>\n\n<code>{}</code>".format(safe_error))
     finally:
         wallet.close()
         logger.info("Job execution finished.")
