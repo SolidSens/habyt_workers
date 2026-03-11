@@ -8,7 +8,14 @@ logger = logging.getLogger(__name__)
 class TelegramNotifier:
     def __init__(self, token=None, chat_id=None):
         self.token = token
-        self.chat_id = chat_id
+        # Convert chat_id to int if it's a numeric string (Telegram API prefers int)
+        if chat_id:
+            try:
+                self.chat_id = int(chat_id) if str(chat_id).isdigit() else chat_id
+            except (ValueError, TypeError):
+                self.chat_id = chat_id
+        else:
+            self.chat_id = None
         self.base_url = "https://api.telegram.org/bot{}/sendMessage".format(token) if token else None
 
     def send_message(self, text):
@@ -16,33 +23,77 @@ class TelegramNotifier:
             logger.warning("Telegram configuration missing.")
             return False
 
+        # Ensure text is not empty and not too long (Telegram limit is 4096 characters)
+        if not text:
+            logger.warning("Cannot send empty message.")
+            return False
+        
+        if len(text) > 4096:
+            logger.warning(f"Message too long ({len(text)} chars), truncating to 4096.")
+            text = text[:4093] + "..."
+
         payload = {
-            "chat_id": self.chat_id, # Enviarlo como número/objeto
+            "chat_id": self.chat_id,
             "text": text,
             "parse_mode": "HTML"
         }
 
+        response = None
         try:
-            # Cambiamos 'data=' por 'json='
+            # First attempt with HTML formatting
             response = requests.post(self.base_url, json=payload, timeout=10)
             
-            # Si el error 400 es por HTML, reintentamos sin formato
+            # If we get a 400 error, try to get more details and retry without HTML
             if response.status_code == 400:
-                logger.warning("HTML Error 400. Reintentando en texto plano...")
-                # Limpiamos etiquetas HTML de forma más agresiva
-                plain_text = re.sub(r'<[^>]+>', '', text)
-                payload["text"] = plain_text
-                del payload["parse_mode"]
-                response = requests.post(self.base_url, json=payload, timeout=10)
+                try:
+                    error_data = response.json()
+                    error_description = error_data.get('description', 'Unknown error')
+                    logger.warning(f"Telegram API 400 error: {error_description}")
+                    
+                    # If it's an HTML parsing error, retry without HTML
+                    if 'parse' in error_description.lower() or 'html' in error_description.lower():
+                        logger.warning("HTML parsing error detected. Retrying with plain text...")
+                        plain_text = re.sub(r'<[^>]+>', '', text)
+                        # Also decode HTML entities
+                        plain_text = html.unescape(plain_text)
+                        payload["text"] = plain_text
+                        del payload["parse_mode"]
+                        response = requests.post(self.base_url, json=payload, timeout=10)
+                    else:
+                        # Log the full error for other types of 400 errors
+                        logger.error(f"Telegram API error response: {error_data}")
+                        return False
+                except (ValueError, KeyError):
+                    # If we can't parse the error response, log the raw text
+                    logger.error(f"Telegram API 400 error (unparseable): {response.text}")
+                    # Try retry without HTML anyway
+                    plain_text = re.sub(r'<[^>]+>', '', text)
+                    plain_text = html.unescape(plain_text)
+                    payload["text"] = plain_text
+                    if "parse_mode" in payload:
+                        del payload["parse_mode"]
+                    response = requests.post(self.base_url, json=payload, timeout=10)
 
             response.raise_for_status()
             logger.info("Notificación enviada con éxito.")
             return True
-        except Exception as e:
-            # Esto te dirá exactamente qué dice Telegram (ej: "chat not found")
-            error_detail = response.text if 'response' in locals() else str(e)
-            logger.error(f"Fallo total de Telegram: {error_detail}")
+        except requests.exceptions.RequestException as e:
+            # Network or HTTP errors
+            if response is not None:
+                try:
+                    error_data = response.json()
+                    error_description = error_data.get('description', response.text)
+                    logger.error(f"Telegram API error: {error_description} (Status: {response.status_code})")
+                except (ValueError, AttributeError):
+                    logger.error(f"Telegram request failed: {response.text if response else str(e)}")
+            else:
+                logger.error(f"Telegram request failed (no response): {str(e)}")
             return False
+        except Exception as e:
+            # Unexpected errors
+            logger.error(f"Unexpected error sending Telegram message: {str(e)}")
+            return False
+    
     def notify_success(self, alert_type, template_id, extra_info=""):
         """Sends a success notification."""
         emoji = "✅" if alert_type != 'deletion' else "🗑️"
