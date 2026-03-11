@@ -3,6 +3,7 @@ import logging
 from dotenv import load_dotenv
 from gmail_manager import GmailManager
 from wallet_automation import WalletAutomation
+from notification_manager import TelegramNotifier
 
 # Configure logging
 logging.basicConfig(
@@ -23,6 +24,11 @@ def run_worker():
     # Use strip() to handle cases with trailing spaces in .env
     chrome_debug_port = os.getenv('CHROME_DEBUG_PORT', '').strip()
     
+    # Telegram config
+    tg_token = os.getenv('TELEGRAM_TOKEN')
+    tg_chat_id = os.getenv('TELEGRAM_CHAT_ID')
+    notifier = TelegramNotifier(token=tg_token, chat_id=tg_chat_id)
+    
     # Initialize managers
     gmail = GmailManager(credentials_path=gmail_creds, token_path=gmail_token)
     
@@ -38,6 +44,10 @@ def run_worker():
         debugger_address="127.0.0.1:{}".format(chrome_debug_port) if chrome_debug_port else None
     )
 
+    success_count = 0
+    failure_count = 0
+    total_alerts = 0
+
     try:
         logger.info("Starting Gmail-to-WalletThat Automation Job...")
         
@@ -48,7 +58,8 @@ def run_worker():
             logger.info("No new alerts found.")
             return
 
-        logger.info("Found {} new alert(s).".format(len(alerts)))
+        total_alerts = len(alerts)
+        logger.info("Found {} new alert(s).".format(total_alerts))
 
         # Step 2: Open browser for automation
         wallet.start_browser()
@@ -57,47 +68,66 @@ def run_worker():
         for alert in alerts:
             msg_id = alert['id']
             alert_type = alert.get('alert_type', 'currency')
+            template_id = alert.get('template_id', 'Unknown')
             
             logger.info("Processing {} alert for message {}".format(alert_type, msg_id))
             
             success = False
-            if alert_type == 'deletion':
-                template_ids = alert.get('template_ids', [])
-                logger.info("Processing deletion alert for message {}. IDs: {}".format(msg_id, template_ids))
-                failed_ids = []
-                for tid in template_ids:
-                    if not wallet.delete_template(tid):
-                        failed_ids.append(tid)
-                
-                if failed_ids:
-                    logger.error("Failed to delete some templates for message {}: {}".format(msg_id, failed_ids))
-                    success = False
+            error_detail = ""
+            
+            try:
+                if alert_type == 'deletion':
+                    template_ids = alert.get('template_ids', [])
+                    template_id = ", ".join(template_ids) # For notification
+                    logger.info("Processing deletion alert for message {}. IDs: {}".format(msg_id, template_ids))
+                    failed_ids = []
+                    for tid in template_ids:
+                        if not wallet.delete_template(tid):
+                            failed_ids.append(tid)
+                    
+                    if failed_ids:
+                        error_detail = "Failed IDs: {}".format(failed_ids)
+                        logger.error("Failed to delete some templates for message {}: {}".format(msg_id, failed_ids))
+                        success = False
+                    else:
+                        success = True
                 else:
-                    success = True
-            else:
-                template_id = alert.get('template_id')
-                if alert_type == 'currency':
-                    currency = alert['currency']
-                    logger.info("Updating Currency: Template ID: {}, Currency: {}".format(template_id, currency))
-                    success = wallet.update_template(template_id, currency)
-                elif alert_type == 'icon':
-                    icon_path = alert.get('icon_path')
-                    logger.info("Updating Icon: Template ID: {}, Icon Path: {}".format(template_id, icon_path))
-                    success = wallet.update_icon(template_id, icon_path)
+                    template_id = alert.get('template_id', 'Unknown')
+                    if alert_type == 'currency':
+                        currency = alert['currency']
+                        logger.info("Updating Currency: Template ID: {}, Currency: {}".format(template_id, currency))
+                        success = wallet.update_template(template_id, currency)
+                        if not success: error_detail = "Automation failed during currency update"
+                    elif alert_type == 'icon':
+                        icon_path = alert.get('icon_path')
+                        logger.info("Updating Icon: Template ID: {}, Icon Path: {}".format(template_id, icon_path))
+                        success = wallet.update_icon(template_id, icon_path)
+                        if not success: error_detail = "Automation failed during icon update"
+            except Exception as inner_e:
+                logger.error("Error processing individual alert: {}".format(inner_e))
+                success = False
+                error_detail = str(inner_e)
             
             if success:
                 # Step 4: Mark email as read and STAR it only if update was successful
                 gmail.mark_as_read(msg_id)
                 gmail.star_message(msg_id)
                 logger.info("Successfully processed alert for message {}".format(msg_id))
+                notifier.notify_success(alert_type, template_id)
+                success_count += 1
             else:
                 logger.error("Failed to process alert for message {}".format(msg_id))
+                notifier.notify_failure(alert_type, template_id, error_detail)
+                failure_count += 1
 
     except Exception as e:
         logger.error("An error occurred during execution: {}".format(e))
+        notifier.send_message("<b>❌ CRITICAL ERROR in Habyt Worker Job</b>\n\n<code>{}</code>".format(e))
     finally:
         wallet.close()
         logger.info("Job execution finished.")
+        if total_alerts > 0:
+            notifier.notify_job_summary(total_alerts, success_count, failure_count)
 
 def main():
     import time
