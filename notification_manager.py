@@ -12,43 +12,37 @@ class TelegramNotifier:
         self.base_url = "https://api.telegram.org/bot{}/sendMessage".format(token) if token else None
 
     def send_message(self, text):
-        """Sends a telegram message."""
         if not self.token or not self.chat_id:
-            logger.warning("Telegram configuration missing. Skipping notification.")
+            logger.warning("Telegram configuration missing.")
             return False
 
-        # Simplified payload
         payload = {
-            "chat_id": str(self.chat_id),
+            "chat_id": self.chat_id, # Enviarlo como número/objeto
             "text": text,
             "parse_mode": "HTML"
         }
 
         try:
-            # Use data= (form-encoded) as preferred by the user logic
-            response = requests.post(self.base_url, data=payload, timeout=10)
+            # Cambiamos 'data=' por 'json='
+            response = requests.post(self.base_url, json=payload, timeout=10)
             
-            # If HTML parsing fails, try plain text fallback
+            # Si el error 400 es por HTML, reintentamos sin formato
             if response.status_code == 400:
-                logger.warning("Telegram HTML parsing failed or other 400 error. Retrying with plain text...")
-                import re
-                plain_text = re.sub('<[^<]+?>', '', text)
-                fallback_payload = {
-                    "chat_id": str(self.chat_id),
-                    "text": plain_text
-                }
-                response = requests.post(self.base_url, data=fallback_payload, timeout=10)
+                logger.warning("HTML Error 400. Reintentando en texto plano...")
+                # Limpiamos etiquetas HTML de forma más agresiva
+                plain_text = re.sub(r'<[^>]+>', '', text)
+                payload["text"] = plain_text
+                del payload["parse_mode"]
+                response = requests.post(self.base_url, json=payload, timeout=10)
 
-            if response.status_code != 200:
-                logger.error("Telegram API error {}: {}".format(response.status_code, response.text))
-            
             response.raise_for_status()
-            logger.info("Telegram notification sent successfully.")
+            logger.info("Notificación enviada con éxito.")
             return True
         except Exception as e:
-            logger.error("Failed to send Telegram notification: {}".format(e))
+            # Esto te dirá exactamente qué dice Telegram (ej: "chat not found")
+            error_detail = response.text if 'response' in locals() else str(e)
+            logger.error(f"Fallo total de Telegram: {error_detail}")
             return False
-
     def notify_success(self, alert_type, template_id, extra_info=""):
         """Sends a success notification."""
         emoji = "✅" if alert_type != 'deletion' else "🗑️"
