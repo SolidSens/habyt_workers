@@ -58,7 +58,12 @@ class WalletAutomation:
                 logger.info("Launched Chrome with profile: {}".format(self.profile_name))
 
         except Exception as e:
+            import traceback
             error_str = str(e).lower()
+            
+            # Log full traceback for debugging
+            logger.error("Chrome browser initialization failed:")
+            logger.error(traceback.format_exc())
             
             if "user data directory is already in use" in error_str:
                 logger.error("CHROME ERROR: The Chrome profile you specified is already open.")
