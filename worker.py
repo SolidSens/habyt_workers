@@ -14,7 +14,9 @@ logger = logging.getLogger(__name__)
 
 def run_worker():
     # Load configuration
-    load_dotenv()
+    from pathlib import Path
+    env_path = Path(__file__).parent / '.env'
+    load_dotenv(dotenv_path=env_path)
     
     gmail_creds = os.getenv('GMAIL_CREDENTIALS_PATH', 'credentials.json')
     gmail_token = os.getenv('GMAIL_TOKEN_PATH', 'token.json')
@@ -24,13 +26,9 @@ def run_worker():
     # Use strip() to handle cases with trailing spaces in .env
     chrome_debug_port = os.getenv('CHROME_DEBUG_PORT', '').strip()
     
-    # Telegram config
-    tg_token = os.getenv('TELEGRAM_TOKEN')
-    tg_chat_id = os.getenv('TELEGRAM_CHAT_ID')
-    
-    logger.info("DEBUG: TELEGRAM_TOKEN loaded: {}".format("Yes" if tg_token else "No"))
-    logger.info("DEBUG: TELEGRAM_CHAT_ID loaded: {}".format("Yes" if tg_chat_id else "No"))
-    
+    # Telegram config - strip quotes if present
+    tg_token = os.getenv('TELEGRAM_TOKEN', '').strip(' "')
+    tg_chat_id = os.getenv('TELEGRAM_CHAT_ID', '').strip(' "')
     notifier = TelegramNotifier(token=tg_token, chat_id=tg_chat_id)
     
     # Initialize managers
