@@ -64,6 +64,8 @@ class WalletAutomation:
 
     def _robust_click(self, element, description="element"):
         """Tries to click an element, falls back to JS click if obstructed."""
+        if not self.driver:
+            return
         try:
             # Scroll into view
             self.driver.execute_script("arguments[0].scrollIntoView(true);", element)
@@ -74,6 +76,23 @@ class WalletAutomation:
             logger.warning("Standard click failed for {}, trying JavaScript click. Error: {}".format(description, e))
             self.driver.execute_script("arguments[0].click();", element)
             logger.info("Successfully clicked {} via JavaScript.".format(description))
+
+    def _verify_success(self, template_id, action="update", timeout=15):
+        """Wait until the URL contains 'success=' to verify the action completed."""
+        if not self.driver:
+            return False
+            
+        logger.info("Waiting for success redirect for Template ID: {} ({})...".format(template_id, action))
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            if "success=" in self.driver.current_url:
+                logger.info("Success! Redirect detected for {}: {}".format(template_id, self.driver.current_url))
+                return True
+            time.sleep(1)
+        
+        logger.warning("Timed out waiting for success redirect for {}. Final URL: {}".format(template_id, self.driver.current_url))
+        # If we see the success string even after timeout (e.g. slow load), return True
+        return "success=" in self.driver.current_url
 
     def _search_template(self, template_id):
         """Searches for a template ID on the templates page."""
@@ -173,16 +192,7 @@ class WalletAutomation:
                 pass
 
             # 7. Final Success Verification
-            time.sleep(1)
-            if "success=" in self.driver.current_url:
-                logger.info("Success! Redirected to success page.")
-                return True
-            
-            time.sleep(2)
-            if "success=" in self.driver.current_url:
-                return True
-                
-            return True
+            return self._verify_success(template_id, action="currency update")
 
         except Exception as e:
             logger.error("Automation flow failed at template {}: {}".format(template_id, e))
@@ -235,17 +245,7 @@ class WalletAutomation:
                 pass
 
             # 10. Success Verification
-            time.sleep(1)
-            if "success=" in self.driver.current_url:
-                logger.info("Success! Icon updated and redirected.")
-                return True
-            
-            time.sleep(2)
-            if "success=" in self.driver.current_url:
-                return True
-
-            logger.info("Icon update finished for template {}.".format(template_id))
-            return True
+            return self._verify_success(template_id, action="icon update")
 
         except Exception as e:
             logger.error("Icon update flow failed for template {}: {}".format(template_id, e))
@@ -274,15 +274,10 @@ class WalletAutomation:
             except Exception as e:
                 logger.warning("No browser alert found or failed to accept: {}".format(e))
             
-            time.sleep(3)
+            time.sleep(2)
 
             # 4. Success Verification
-            if "success=" in self.driver.current_url:
-                logger.info("Success! Template {} deleted and redirected.".format(template_id))
-                return True
-            
-            logger.info("Finished deletion attempt for {}. Final URL: {}".format(template_id, self.driver.current_url))
-            return True
+            return self._verify_success(template_id, action="deletion")
 
         except Exception as e:
             logger.error("Deletion flow failed for template {}: {}".format(template_id, e))

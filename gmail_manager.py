@@ -136,7 +136,8 @@ class GmailManager:
                     
                     alert_data.append(parsed)
                 else:
-                    logger.warning("Could not parse email body for message {}. Body snippet: {}".format(msg_id, body_for_parsing[:500].replace('\n', ' ')))
+                    snippet = body_for_parsing[:500].replace('\n', ' ') if body_for_parsing else "Empty body"
+                    logger.warning("Could not parse email body for message {}. Body snippet: {}".format(msg_id, snippet))
             except Exception as e:
                 logger.error("Error retrieving full message {}: {}".format(msg_id, e))
 
@@ -264,16 +265,26 @@ class GmailManager:
                     logger.info("Found currency via generic label pattern: {}".format(currency))
 
         if alert_type == 'deletion':
-            # Extract all template IDs from the table
-            # They usually look like 40-character hex strings
-            # We look for them in the context of "ID WalletThat"
-            # Since it's a table, let's look for all matches of the ID pattern
-            ids = re.findall(r'\b([A-Za-z0-9]{30,64})\b', clean_body)
-            # Filter out known non-IDs if any, or just return unique ones
-            unique_ids = list(set(ids))
-            if unique_ids:
-                logger.info("Found {} IDs in deletion alert: {}".format(len(unique_ids), unique_ids))
-                return {'template_ids': unique_ids}
+            # Extract Template IDs (usually 40-char hex)
+            # Strategy 1: Look for them specifically inside <td> tags if it's HTML
+            td_ids = re.findall(r'<td[^>]*>\s*([A-Za-z0-9]{30,64})\s*</td>', body, re.IGNORECASE)
+            
+            # Strategy 2: Look for them following "ID WalletThat" or "ID" in cleaned body
+            # This is a fallback or for plain text
+            marker_ids = re.findall(r'(?:ID WalletThat|ID de Plantilla|ID):\s*([A-Za-z0-9]{30,64})', clean_body, re.IGNORECASE)
+            
+            # Strategy 3: General hex-like strings (40 chars) as a last resort, but filtered
+            # We only accept them if they look like the others found or if we found none
+            all_found = list(set(td_ids + marker_ids))
+            
+            if not all_found:
+                # Last resort: find anything that looks like a 40-char hex string
+                hex_ids = re.findall(r'\b([a-fA-F0-9]{40})\b', clean_body)
+                all_found = list(set(hex_ids))
+
+            if all_found:
+                logger.info("Found {} IDs in deletion alert: {}".format(len(all_found), all_found))
+                return {'template_ids': all_found}
             return None
 
         if template_id_match:

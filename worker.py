@@ -64,11 +64,16 @@ def main():
             if alert_type == 'deletion':
                 template_ids = alert.get('template_ids', [])
                 logger.info("Processing deletion alert for message {}. IDs: {}".format(msg_id, template_ids))
-                all_success = True
+                failed_ids = []
                 for tid in template_ids:
                     if not wallet.delete_template(tid):
-                        all_success = False
-                success = all_success
+                        failed_ids.append(tid)
+                
+                if failed_ids:
+                    logger.error("Failed to delete some templates for message {}: {}".format(msg_id, failed_ids))
+                    success = False
+                else:
+                    success = True
             else:
                 template_id = alert.get('template_id')
                 if alert_type == 'currency':
