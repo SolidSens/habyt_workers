@@ -78,21 +78,23 @@ class WalletAutomation:
             logger.info("Successfully clicked {} via JavaScript.".format(description))
 
     def _verify_success(self, template_id, action="update", timeout=15):
-        """Wait until the URL contains 'success=' to verify the action completed."""
+        """Wait until the URL contains 'success=' or 'message=' to verify the action completed."""
         if not self.driver:
             return False
             
         logger.info("Waiting for success redirect for Template ID: {} ({})...".format(template_id, action))
         start_time = time.time()
         while time.time() - start_time < timeout:
-            if "success=" in self.driver.current_url:
-                logger.info("Success! Redirect detected for {}: {}".format(template_id, self.driver.current_url))
+            current_url = self.driver.current_url
+            if "success=" in current_url or "message=" in current_url:
+                logger.info("Success! Redirect detected for {}: {}".format(template_id, current_url))
                 return True
             time.sleep(1)
         
-        logger.warning("Timed out waiting for success redirect for {}. Final URL: {}".format(template_id, self.driver.current_url))
+        final_url = self.driver.current_url
+        logger.warning("Timed out waiting for success redirect for {}. Final URL: {}".format(template_id, final_url))
         # If we see the success string even after timeout (e.g. slow load), return True
-        return "success=" in self.driver.current_url
+        return "success=" in final_url or "message=" in final_url
 
     def _search_template(self, template_id):
         """Searches for a template ID on the templates page."""
