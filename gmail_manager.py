@@ -59,12 +59,11 @@ class GmailManager:
         except Exception as e:
             logger.error("Could not list labels: {}".format(e))
 
-        # Try a broader query that doesn't strictly depend on the label first
-        # subject:"Alerta: Cambio" is the core filter
-        # from:hello@solidsens.com is the core sender
+        # We search for unread emails from specific senders or with specific labels
         queries = [
-            'label:"Alerts Habyt" is:unread subject:"Alerta: Cambio"',
-            'from:hello@solidsens.com is:unread subject:"Alerta: Cambio"'
+            'label:"Alerts Habyt" is:unread',
+            'from:hello@solidsens.com is:unread',
+            'from:"Habyt Internal Alerts" is:unread'
         ]
         
         all_messages = []
