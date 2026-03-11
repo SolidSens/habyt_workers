@@ -1,6 +1,7 @@
 import os
 import time
 import logging
+import random
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
@@ -62,20 +63,28 @@ class WalletAutomation:
                 logger.error("FIX: Either close Chrome, or use the 'Remote Debugging' method (see walkthrough).")
             raise e
 
+    def _human_delay(self, min_seconds=1.0, max_seconds=3.0):
+        """Introduces a randomized delay to mimic human behavior."""
+        delay = random.uniform(min_seconds, max_seconds)
+        time.sleep(delay)
+
     def _robust_click(self, element, description="element"):
         """Tries to click an element, falls back to JS click if obstructed."""
         if not self.driver:
             return
+        
+        self._human_delay(0.5, 1.5) # Wait before clicking
         try:
             # Scroll into view
-            self.driver.execute_script("arguments[0].scrollIntoView(true);", element)
-            time.sleep(0.5)
+            self.driver.execute_script("arguments[0].scrollIntoView({behavior: 'smooth', block: 'center'});", element)
+            self._human_delay(0.8, 1.2)
             element.click()
             logger.info("Successfully clicked {}.".format(description))
         except Exception as e:
             logger.warning("Standard click failed for {}, trying JavaScript click. Error: {}".format(description, e))
             self.driver.execute_script("arguments[0].click();", element)
             logger.info("Successfully clicked {} via JavaScript.".format(description))
+        self._human_delay(0.5, 1.5) # Wait after clicking
 
     def _verify_success(self, template_id, action="update", timeout=15):
         """Wait until the URL contains 'success=' or 'message=' to verify the action completed."""
@@ -96,8 +105,6 @@ class WalletAutomation:
         # If we see the success string even after timeout (e.g. slow load), return True
         return "success=" in final_url or "message=" in final_url
 
-        return "success=" in final_url or "message=" in final_url
-
     def ensure_logged_in(self):
         """Checks if logged out and performs login if necessary."""
         if not self.driver:
@@ -114,17 +121,18 @@ class WalletAutomation:
             if login_buttons:
                 logger.info("Login button detected. Session may have expired. Clicking Login...")
                 self._robust_click(login_buttons[0], "login button")
-                time.sleep(3)
+                self._human_delay(2.0, 4.0)
                 
                 # After login click, check for obstructive modals
                 close_btn_selector = (By.CSS_SELECTOR, "button.btn-close[data-bs-dismiss='modal'], .modal-footer button[data-bs-dismiss='modal']")
                 try:
+                    self._human_delay(1.0, 2.0)
                     close_buttons = self.driver.find_elements(*close_btn_selector)
                     for btn in close_buttons:
                         if btn.is_displayed():
                             logger.info("Closing obstructive modal...")
                             self._robust_click(btn, "modal close button")
-                            time.sleep(1)
+                            self._human_delay(0.5, 1.0)
                 except:
                     pass
             
@@ -132,13 +140,14 @@ class WalletAutomation:
             if target_url not in self.driver.current_url:
                 logger.info("Not on templates page. Navigating to: {}".format(target_url))
                 self.driver.get(target_url)
-                time.sleep(3)
+                self._human_delay(2.0, 4.0)
                 
         except Exception as e:
             logger.error("Error during ensure_logged_in: {}".format(e))
             # Fallback re-navigation
-            self.driver.get(target_url)
-            time.sleep(3)
+            if self.driver:
+                self.driver.get(target_url)
+            self._human_delay(2.0, 4.0)
 
     def _search_template(self, template_id):
         """Searches for a template ID on the templates page."""
@@ -154,7 +163,7 @@ class WalletAutomation:
         if self.driver and self.driver.current_url != url:
             logger.info("Navigating to: {}".format(url))
             self.driver.get(url)
-            time.sleep(2)
+            self._human_delay(1.5, 3.0)
         
         logger.info("Searching for Template ID: {}".format(template_id))
         search_input = None
@@ -177,7 +186,7 @@ class WalletAutomation:
         except:
             search_input.send_keys(Keys.ENTER)
         
-        time.sleep(3)
+        self._human_delay(2.0, 4.0)
         return True
 
     def _navigate_to_edit(self, template_id):
