@@ -11,7 +11,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def main():
+def run_worker():
     # Load configuration
     load_dotenv()
     
@@ -39,7 +39,7 @@ def main():
     )
 
     try:
-        logger.info("Starting Gmail-to-WalletThat Automation Worker...")
+        logger.info("Starting Gmail-to-WalletThat Automation Job...")
         
         # Step 1: Check for new alerts in Gmail
         alerts = gmail.get_unread_alerts()
@@ -97,7 +97,23 @@ def main():
         logger.error("An error occurred during execution: {}".format(e))
     finally:
         wallet.close()
-        logger.info("Worker session ended.")
+        logger.info("Job execution finished.")
+
+def main():
+    import time
+    interval_minutes = 10
+    interval_seconds = interval_minutes * 60
+    
+    logger.info("Worker started. Will run every {} minutes.".format(interval_minutes))
+    
+    while True:
+        try:
+            run_worker()
+        except Exception as e:
+            logger.error("Fatal error in worker loop: {}".format(e))
+        
+        logger.info("Waiting {} minutes for next run...".format(interval_minutes))
+        time.sleep(interval_seconds)
 
 if __name__ == "__main__":
     main()
