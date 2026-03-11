@@ -23,6 +23,19 @@ class TelegramNotifier:
 
         try:
             response = requests.post(self.base_url, json=payload, timeout=10)
+            
+            # If HTML parsing fails, try plain text fallback
+            if response.status_code == 400 and "can't parse entities" in response.text:
+                logger.warning("HTML parsing failed, falling back to plain text.")
+                payload.pop("parse_mode", None)
+                # Strip HTML tags for fallback
+                import re
+                payload["text"] = re.sub('<[^<]+?>', '', text)
+                response = requests.post(self.base_url, json=payload, timeout=10)
+
+            if response.status_code != 200:
+                logger.error("Telegram API error {}: {}".format(response.status_code, response.text))
+            
             response.raise_for_status()
             logger.info("Telegram notification sent successfully.")
             return True
