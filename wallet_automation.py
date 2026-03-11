@@ -58,10 +58,26 @@ class WalletAutomation:
                 logger.info("Launched Chrome with profile: {}".format(self.profile_name))
 
         except Exception as e:
-            if "user data directory is already in use" in str(e):
+            error_str = str(e).lower()
+            
+            if "user data directory is already in use" in error_str:
                 logger.error("CHROME ERROR: The Chrome profile you specified is already open.")
                 logger.error("FIX: Either close Chrome, or use the 'Remote Debugging' method (see walkthrough).")
-            raise e
+                raise Exception("Chrome profile is already in use. Close Chrome or use remote debugging mode.")
+            
+            elif "cannot connect to chrome" in error_str or "chrome not reachable" in error_str:
+                if self.debugger_address:
+                    logger.error("CHROME ERROR: Cannot connect to Chrome at {}".format(self.debugger_address))
+                    logger.error("FIX: Start Chrome with remote debugging enabled:")
+                    logger.error("  chrome --remote-debugging-port={}".format(self.debugger_address.split(':')[1]))
+                    raise Exception("Cannot connect to Chrome at {}. Make sure Chrome is running with --remote-debugging-port enabled.".format(self.debugger_address))
+                else:
+                    logger.error("CHROME ERROR: Failed to launch Chrome browser.")
+                    raise Exception("Failed to launch Chrome browser. Check your CHROME_USER_DATA_DIR and CHROME_BINARY_PATH settings.")
+            
+            else:
+                # Re-raise other exceptions as-is
+                raise e
 
     def _human_delay(self, min_seconds=1.0, max_seconds=3.0):
         """Introduces a randomized delay to mimic human behavior."""

@@ -142,8 +142,36 @@ def run_worker():
     except Exception as e:
         logger.error("An error occurred during execution: {}".format(e))
         import html
-        safe_error = html.escape(str(e))
-        notifier.send_message("<b>❌ CRITICAL ERROR in Habyt Worker Job</b>\n\n<code>{}</code>".format(safe_error))
+        
+        # Extract meaningful error message (first line usually contains the key info)
+        error_str = str(e)
+        error_lines = error_str.split('\n')
+        main_error = error_lines[0] if error_lines else str(e)
+        
+        # Truncate if too long (Telegram limit is 4096, but we want readable messages)
+        if len(main_error) > 500:
+            main_error = main_error[:497] + "..."
+        
+        # Format user-friendly error message
+        safe_error = html.escape(main_error)
+        
+        # Add helpful context for common errors
+        error_msg = "<b>❌ CRITICAL ERROR in Habyt Worker Job</b>\n\n"
+        error_msg += "<b>Error:</b> <code>{}</code>\n\n".format(safe_error)
+        
+        # Add specific guidance for Chrome connection errors
+        if "cannot connect to chrome" in error_str.lower() or "chrome not reachable" in error_str.lower():
+            if chrome_debug_port:
+                error_msg += "<b>💡 Solution:</b>\n"
+                error_msg += "Chrome is not running with remote debugging enabled.\n\n"
+                error_msg += "Start Chrome with:\n"
+                error_msg += "<code>chrome --remote-debugging-port={}</code>\n\n".format(chrome_debug_port)
+                error_msg += "Or remove CHROME_DEBUG_PORT from .env to use local profile mode."
+            else:
+                error_msg += "<b>💡 Solution:</b>\n"
+                error_msg += "Check your Chrome profile path in .env file."
+        
+        notifier.send_message(error_msg)
     finally:
         wallet.close()
         logger.info("Job execution finished.")
