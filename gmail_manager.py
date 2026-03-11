@@ -85,6 +85,9 @@ class GmailManager:
                 unique_msg_ids.add(msg['id'])
                 unique_messages.append(msg)
 
+        # Reverse to process oldest messages first (Gmail returns newest first by default)
+        unique_messages.reverse()
+        
         alert_data = []
         for msg in unique_messages:
             msg_id = msg['id']
