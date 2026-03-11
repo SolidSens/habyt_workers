@@ -100,7 +100,7 @@ class GmailManager:
                 alert_type = 'currency'
                 if 'Icono' in subject:
                     alert_type = 'icon'
-                elif 'Cuenta Eliminada' in subject:
+                elif 'Cuenta Eliminada' in subject or 'Reducción de Plan' in subject:
                     alert_type = 'deletion'
 
                 plain_body = ""

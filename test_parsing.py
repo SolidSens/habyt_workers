@@ -95,6 +95,24 @@ class TestEmailParsing(unittest.TestCase):
         self.assertIn('5b48bf2afbbe333452a19858f7f1604bd3d9e6fa', result['template_ids'])
         self.assertIn('8eb2f7a9d0c1b2e3f4a5b6c7d8e9f0a1b2c3d4e5', result['template_ids'])
 
+    def test_parse_reduction_alert_multiple_ids(self):
+        body = """
+        <html>
+        <body>
+            <h3>Alerta: Reducción de Plan</h3>
+            <p>Listado de Templates Eliminados</p>
+            <table>
+                <tr><td>ID WalletThat</td></tr>
+                <tr><td>abcd1234efgh5678ijkl9012mnop3456qrst5678</td></tr>
+            </table>
+        </body>
+        </html>
+        """
+        result = parse_email_body(body, alert_type='deletion')
+        self.assertIsNotNone(result)
+        self.assertEqual(len(result['template_ids']), 1)
+        self.assertEqual(result['template_ids'][0], 'abcd1234efgh5678ijkl9012mnop3456qrst5678')
+
     def test_parse_invalid_body(self):
         body = "This is a random email without the required fields."
         result = parse_email_body(body)
