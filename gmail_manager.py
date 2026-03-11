@@ -1,4 +1,5 @@
 import os
+import json
 import base64
 import re
 import logging
@@ -24,14 +25,40 @@ class GmailManager:
         """Authenticates the user and returns the Gmail API service."""
         creds = None
         if os.path.exists(self.token_path):
-            creds = Credentials.from_authorized_user_file(self.token_path, SCOPES)
+            try:
+                if os.path.getsize(self.token_path) > 0:
+                    with open(self.token_path, 'r') as f:
+                        content = f.read()
+                        if not content.strip():
+                            raise ValueError("Token file is empty")
+                        creds = Credentials.from_authorized_user_info(json.loads(content), SCOPES)
+                else:
+                    logger.warning("Token file {} is empty. Deleting...".format(self.token_path))
+                    os.remove(self.token_path)
+            except Exception as e:
+                logger.error("Error loading token file ({}): {}. Deleting to force re-auth.".format(self.token_path, e))
+                if os.path.exists(self.token_path):
+                    os.remove(self.token_path)
         
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
-            else:
+                try:
+                    creds.refresh(Request())
+                except Exception as e:
+                    logger.error("Failed to refresh token: {}. Forcing re-auth.".format(e))
+                    creds = None
+            
+            if not creds:
                 if not os.path.exists(self.credentials_path):
                     raise FileNotFoundError("Credentials file not found at {}".format(self.credentials_path))
+                
+                # Verify credentials.json too
+                try:
+                    with open(self.credentials_path, 'r') as f:
+                        json.load(f)
+                except Exception as e:
+                    raise ValueError("Error in credentials.json: {}".format(e))
+
                 flow = InstalledAppFlow.from_client_secrets_file(self.credentials_path, SCOPES)
                 creds = flow.run_local_server(port=0)
             
@@ -39,7 +66,7 @@ class GmailManager:
                 token.write(creds.to_json())
 
         try:
-            self.service = build('gmail', 'v1', credentials=creds)
+            self.service = build('gmail', 'v1', credentials=creds, cache_discovery=False)
             return self.service
         except HttpError as error:
             logger.error("An error occurred during Gmail authentication: {}".format(error))

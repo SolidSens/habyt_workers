@@ -15,29 +15,46 @@ logger = logging.getLogger(__name__)
 def run_worker():
     # Load configuration
     from pathlib import Path
-    env_path = Path(__file__).parent / '.env'
-    load_dotenv(dotenv_path=env_path)
+    import sys
+    
+    script_dir = Path(__file__).parent.absolute()
+    env_path = script_dir / '.env'
+    
+    logger.info("--- WORKER BOOT ---")
+    logger.info("Script Dir: {}".format(script_dir))
+    logger.info("Loading .env from: {}".format(env_path))
+    
+    if env_path.exists():
+        load_dotenv(dotenv_path=env_path, override=True)
+    else:
+        logger.error(".env FILE NOT FOUND AT {}".format(env_path))
+    
+    # Telegram config
+    tg_token = os.getenv('TELEGRAM_TOKEN', '').strip(' "')
+    tg_chat_id = os.getenv('TELEGRAM_CHAT_ID', '').strip(' "')
+    
+    logger.info("TELEGRAM_TOKEN: [FOUND]" if tg_token else "TELEGRAM_TOKEN: [MISSING]")
+    logger.info("TELEGRAM_CHAT_ID: [FOUND]" if tg_chat_id else "TELEGRAM_CHAT_ID: [MISSING]")
+    
+    notifier = TelegramNotifier(token=tg_token, chat_id=tg_chat_id)
     
     gmail_creds = os.getenv('GMAIL_CREDENTIALS_PATH', 'credentials.json')
     gmail_token = os.getenv('GMAIL_TOKEN_PATH', 'token.json')
     chrome_data_dir = os.getenv('CHROME_USER_DATA_DIR')
     chrome_profile = os.getenv('CHROME_PROFILE_NAME', 'Default')
     chrome_binary = os.getenv('CHROME_BINARY_PATH')
-    # Use strip() to handle cases with trailing spaces in .env
     chrome_debug_port = os.getenv('CHROME_DEBUG_PORT', '').strip()
     
-    # Telegram config - strip quotes if present
-    tg_token = os.getenv('TELEGRAM_TOKEN', '').strip(' "')
-    tg_chat_id = os.getenv('TELEGRAM_CHAT_ID', '').strip(' "')
-    notifier = TelegramNotifier(token=tg_token, chat_id=tg_chat_id)
-    
     # Initialize managers
-    gmail = GmailManager(credentials_path=gmail_creds, token_path=gmail_token)
+    gmail = GmailManager(
+        credentials_path=os.path.join(script_dir, gmail_creds), 
+        token_path=os.path.join(script_dir, gmail_token)
+    )
     
-    if chrome_debug_port and chrome_debug_port != "":
-        logger.info("CONFIGURATION: Mode=Remote Debugging, Port={}".format(chrome_debug_port))
+    if chrome_debug_port:
+        logger.info("MODE: Remote Debugging, Port={}".format(chrome_debug_port))
     else:
-        logger.info("CONFIGURATION: Mode=Local Profile, Dir={}".format(chrome_data_dir))
+        logger.info("MODE: Local Profile, Dir={}".format(chrome_data_dir))
 
     wallet = WalletAutomation(
         user_data_dir=chrome_data_dir, 
@@ -140,6 +157,7 @@ def main():
     
     while True:
         try:
+            total_alerts = 0
             run_worker()
         except Exception as e:
             logger.error("Fatal error in worker loop: {}".format(e))
