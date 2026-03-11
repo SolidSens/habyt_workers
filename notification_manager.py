@@ -1,5 +1,7 @@
 import requests
 import logging
+import html
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -15,23 +17,27 @@ class TelegramNotifier:
             logger.warning("Telegram configuration missing. Skipping notification.")
             return False
 
+        # Simplified payload
         payload = {
-            "chat_id": self.chat_id,
+            "chat_id": str(self.chat_id),
             "text": text,
             "parse_mode": "HTML"
         }
 
         try:
-            response = requests.post(self.base_url, json=payload, timeout=10)
+            # Use data= (form-encoded) as preferred by the user logic
+            response = requests.post(self.base_url, data=payload, timeout=10)
             
             # If HTML parsing fails, try plain text fallback
-            if response.status_code == 400 and "can't parse entities" in response.text:
-                logger.warning("HTML parsing failed, falling back to plain text.")
-                payload.pop("parse_mode", None)
-                # Strip HTML tags for fallback
+            if response.status_code == 400:
+                logger.warning("Telegram HTML parsing failed or other 400 error. Retrying with plain text...")
                 import re
-                payload["text"] = re.sub('<[^<]+?>', '', text)
-                response = requests.post(self.base_url, json=payload, timeout=10)
+                plain_text = re.sub('<[^<]+?>', '', text)
+                fallback_payload = {
+                    "chat_id": str(self.chat_id),
+                    "text": plain_text
+                }
+                response = requests.post(self.base_url, data=fallback_payload, timeout=10)
 
             if response.status_code != 200:
                 logger.error("Telegram API error {}: {}".format(response.status_code, response.text))
@@ -47,20 +53,22 @@ class TelegramNotifier:
         """Sends a success notification."""
         emoji = "✅" if alert_type != 'deletion' else "🗑️"
         message = "<b>{} Habyt Worker Success</b>\n\n".format(emoji)
-        message += "<b>Type:</b> {}\n".format(alert_type.capitalize())
-        message += "<b>Template ID:</b> <code>{}</code>\n".format(template_id)
+        message += "<b>Type:</b> {}\n".format(html.escape(str(alert_type).capitalize()))
+        message += "<b>Template ID:</b> <code>{}</code>\n".format(html.escape(str(template_id)))
         if extra_info:
-            message += "<b>Info:</b> {}\n".format(extra_info)
+            message += "<b>Info:</b> {}\n".format(html.escape(str(extra_info)))
         
         return self.send_message(message)
 
     def notify_failure(self, alert_type, template_id, error_msg=""):
         """Sends a failure notification."""
         message = "<b>❌ Habyt Worker FAILURE</b>\n\n"
-        message += "<b>Type:</b> {}\n".format(alert_type.capitalize())
-        message += "<b>Template ID:</b> <code>{}</code>\n".format(template_id)
+        message += "<b>Type:</b> {}\n".format(html.escape(str(alert_type).capitalize()))
+        message += "<b>Template ID:</b> <code>{}</code>\n".format(html.escape(str(template_id)))
         if error_msg:
-            message += "<b>Error:</b> <i>{}</i>\n".format(error_msg)
+            # Shorten and escape error message
+            safe_error = html.escape(str(error_msg))[:200]
+            message += "<b>Error:</b> <i>{}</i>\n".format(safe_error)
         
         return self.send_message(message)
 
